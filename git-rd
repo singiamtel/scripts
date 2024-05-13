@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# https://gist.github.com/srebalaji/4b23fb62f6ce26c17b73ca07ae7cfc67
+
+git fetch
+remoteBranch=$(git symbolic-ref --short -q HEAD)
+
+if [ ! -z "$1" ]
+then
+  remoteBranch=$1
+fi
+echo "Showing diff between $remoteBranch origin/$remoteBranch"
+git difftool $remoteBranch origin/$remoteBranch

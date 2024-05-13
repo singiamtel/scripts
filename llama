@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+OLLAMA_ORIGINS=https://ollama-gui.vercel.app ollama serve >/dev/null 2>&1 &
+
+disown %1

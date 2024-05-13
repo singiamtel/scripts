@@ -1,0 +1,34 @@
+#!/bin/bash
+
+cleanup() {
+  # Kill any child processes
+  echo "Cleaning up child processes..."
+  pkill -P $$
+
+  # Exit the script
+  exit 0
+}
+
+cpu_num=$1
+
+if [ $# -ne 1 ]; then
+  cpu_num=$(nproc)
+fi
+
+
+echo "cpu_num: $cpu_num"
+
+# Register the cleanup function to run on SIGINT and SIGTERM signals
+trap cleanup SIGINT SIGTERM
+
+for i in `seq $cpu_num`
+do
+	echo "cpu$i"
+	while true
+	do
+		j=1
+	done &
+done
+
+# Wait for child processes to complete
+wait

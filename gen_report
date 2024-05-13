@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# Generate a report of all the commits I've made on a given day on all of the specified repositories.
+# Usage: gen_report.sh <date>
+
+repos=($(find ~/work/code -name .git -type d | sed 's/\/.git//'))
+# My PC username is usually the same as what I sign my commits with
+ME=$(whoami)
+
+# If using macOS, use gdate instead of date
+if [ "$(uname)" == "Darwin" ]; then
+	shopt -s expand_aliases
+	alias date="gdate"
+fi
+
+set -o errexit
+
+# TODO: This function is horrible, not sure how to make it better though
+function date_to_before_after {
+	# Convert a date to that date at 00:00:00 and the next day at 00:00:00
+	# if date is "week" or "last week", get the range of dates for that week instead
+	set -o errexit
+	local date=$@
+	if [ "$date" == "week" ] || [ "$date" == "last week" ]; then
+		parsedDate=$(date)
+		# echo "parsedDate: $parsedDate" >&2
+		if [ "$date" == "last week" ]; then
+			parsedDate=$(date -d "$parsedDate - 7 days")
+		fi
+		# echo "parsedDate: $parsedDate" >&2
+		# Get last monday if parsedDate is not a monday
+		if [ $(date -d "$parsedDate" +%u) -ne 1 ]; then
+			while [ $(date -d "$parsedDate" +%u) -ne 1 ]; do
+				parsedDate=$(date -d "$parsedDate - 1 day")
+			done
+		fi
+		before=$(date -d "$parsedDate" +%Y-%m-%dT00:00:00)
+		after=$(date -d "$parsedDate + 6 days" +%Y-%m-%dT00:00:00) # +7 gives the next monday
+		echo "$before $after"
+		echo "Running in week mode between $(date -d "$before" +%m-%d) and $(date -d "$after" +%m-%d)" >&2
+		return
+	fi
+	parsedDate=$(date -d "$date")
+	before=$(date -d "$parsedDate" +%Y-%m-%dT00:00:00)
+	after=$(date -d "$parsedDate + 1 day" +%Y-%m-%dT00:00:00)
+	echo "$before $after"
+}
+
+date=$@
+before_after=$(date_to_before_after $date)
+before=$(echo $before_after | cut -d ' ' -f 1)
+after=$(echo $before_after | cut -d ' ' -f 2)
+
+# Get all commits made by me on the given day, and highlight the commit message based on the commit type.
+# This assumes that the commit message is of the form: <type>(<scope>): <message> as specified by conventionalcommits.org
+# It also assumes that you have hl somewhere in your path
+for repo in ${repos[@]}; do
+	cd $repo
+	# Tested with git 2.39.2
+	work=$(git --no-pager log --oneline --pretty=oneline --author=$ME --decorate --color=always $extra_args | head | hl cyan 'fix\(?.*?\)?: ' | hl green 'feat\(?.*?\)?: ' | hl blue 'chore\(?.*?\)?: ' | hl yellow 'docs\(?.*?\)?: ' | hl magenta 'test\(?.*?\)?: ' | hl magenta 'refactor\(?.*?\)?: ' | hl red 'revert\(?.*?\)?: ' | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch" | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch")
+	if [ -n "$work" ]; then
+		git remote -v
+		echo "Repo: $(git remote -v | head -n 1 | awk '{print $2}' | sed 's/.*\///' | sed 's/\.git//')"
+		echo -e "$work"
+		echo # Blank line
+		exit 0
+	fi
+done

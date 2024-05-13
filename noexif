@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Check if a file name is provided as an argument
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <filename>"
+    exit 1
+fi
+
+# The file to process
+file=$1
+
+# Check if the file exists
+if [ -f "$file" ]; then
+    # Remove all EXIF data without keeping the original file
+    exiftool -all= -overwrite_original "$file"
+    echo "EXIF data removed from $file."
+else
+    echo "Error: File does not exist."
+    exit 2
+fi

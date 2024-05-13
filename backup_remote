@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# This script copies a folder from the remote server to the local machine, using rsync.
+# Then it compresses the folder into a tar.gz file, and labels it with the current date.
+
+set -eixo pipefail
+
+remote_folder=$1
+
+if [ -z "$remote_folder" ]; then
+    echo "Please provide the remote folder as the first argument."
+    exit 1
+fi
+
+if [ -d "./output" ]; then
+    echo "The output folder already exists. Please delete it and try again."
+    exit 1
+fi
+mkdir ./output
+
+rsync -avz $remote_folder ./output
+
+folder_name=$(basename $remote_folder)
+
+cd ./output
+
+tar -czvf ../$folder_name-$(date +%Y-%m-%d).tar.gz *
+
+cd ..
+rm -rf ./output

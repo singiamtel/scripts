@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Ensure you have ssh-keygen installed
+
+# Check if an SSH host is provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 hostname_or_user@hostname"
+    exit 1
+fi
+
+SSH_HOST=$1                 # SSH host provided as an argument
+
+# Check if SSH_HOST contains '@'
+if [[ $SSH_HOST == *"@"* ]]; then
+    SERVER_NAME=$(echo $SSH_HOST | cut -d '@' -f 2) # Extract server name after '@'
+else
+    SERVER_NAME=$SSH_HOST # Use the SSH_HOST as the server name
+fi
+
+KEY_NAME=id_rsa_$SERVER_NAME # Key name based on server name
+
+# Generate a new SSH key without a passphrase in the current directory
+ssh-keygen -t rsa -b 4096 -N "" -f $KEY_NAME
+
+# Manually copy the SSH key to the server
+cat $KEY_NAME.pub | ssh $SSH_HOST "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+
+echo "SSH key generated and manually copied to $SERVER_NAME"

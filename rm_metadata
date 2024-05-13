@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+# Check if ExifTool is installed
+if ! command -v exiftool &> /dev/null; then
+    echo "ExifTool is not installed. Please install it before running this script."
+    exit 1
+fi
+
+# Check if the argument is provided
+if [ -z "$1" ]; then
+    echo "Please provide a directory or file as an argument."
+    exit 1
+fi
+
+# Check if the argument is a directory
+if [ -d "$1" ]; then
+    directory="$1"
+    cd "$directory" || exit
+
+    # Remove metadata from files in the directory
+    for file in *; do
+        if [[ -f "$file" ]]; then
+            echo "Removing metadata from: $file"
+            exiftool -all= -overwrite_original "$file"
+        fi
+    done
+
+    echo "Metadata removal complete."
+
+# Check if the argument is a file
+elif [ -f "$1" ]; then
+    file="$1"
+
+    # Remove metadata from the specified file
+    echo "Removing metadata from: $file"
+	exiftool -all= -overwrite_original "$file"
+
+    echo "Metadata removal complete."
+
+# Invalid argument
+else
+    echo "Invalid argument. Please provide a valid directory or file."
+    exit 1
+fi

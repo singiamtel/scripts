@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+PROGRAM=$1
+shift
+COMMAND="$*"
+
+nix-shell -p $PROGRAM --run "$COMMAND"

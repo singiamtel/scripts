@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+session="showcord-dev"
+
+tmux new-session -d -s $session
+
+window=0
+tmux rename-window -t $session:$window 'showcord'
+tmux send-keys -t $session:$window 'cd ~/wsp/showcord' C-m
+tmux send-keys -t $session:$window 'git pull && npm start' C-m
+
+window=1
+tmux new-window -t $session:$window -n 'showdown'
+tmux send-keys -t $session:$window 'cd ~/wsp/misc/pokemon-showdown' C-m
+tmux send-keys -t $session:$window 'npm start' C-m

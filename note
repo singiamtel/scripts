@@ -1,0 +1,23 @@
+#!/usr/bin/env bun
+// vim: set filetype=javascript:
+
+import { $ } from "bun";
+
+function DDMMYYYY(date) {
+  return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+}
+
+const argv = process.argv;
+
+if (argv.length < 3) {
+  console.log('Usage: note <note_title>');
+  process.exit(1);
+}
+
+const filename = `${argv[2]}_${DDMMYYYY(new Date())}.md`;
+const folder = `/home/sergio/notes/notes/misc/${argv[2]}`;
+
+await $`mkdir -p ${folder} && touch ${folder}/${filename}`;
+
+
+await $`neovide ${folder}/${filename}`

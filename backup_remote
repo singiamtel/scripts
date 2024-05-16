@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script copies a folder from the remote server to the local machine, using rsync.
 # Then it compresses the folder into a tar.gz file, and labels it with the current date.

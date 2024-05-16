@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [ $# -ne 2 ]; then
+  echo "Usage: hl <color> <pattern>"
+  exit 1
+fi
+
 function highlight() {
 	declare -A fg_color_map
 	fg_color_map[black]=30

@@ -1,5 +1,3 @@
 #!/usr/bin/env bash
 
-while IFS= read -r line; do
-    echo "scale=10; $line" | bc
-done
+echo "scale=10; $@" | bc

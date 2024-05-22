@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-pushd ~/dotfiles/nixos/
+pushd ~/config/nixos/
 
 $EDITOR
 

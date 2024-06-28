@@ -8,7 +8,7 @@ from collections import deque , defaultdict
 
 def get_all_links(url, domain):
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code != 200:
             print(f"Failed to access {url}: Status code {response.status_code}")
             return []
@@ -42,7 +42,7 @@ def find_404s(start_url):
             if parent:
                 parent_map[url].append(parent)
             try:
-                response = requests.get(url)
+                response = requests.get(url, timeout=10)
                 if response.status_code == 404:
                     print(f"404 found at: {url}, linked from {parent_map[url]}")
                 elif response.status_code == 200:

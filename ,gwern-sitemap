@@ -1,2 +1,2 @@
 #!/bin/sh
-curl -fsSL gwern.net/sitemap.xml | rg '(http.*?)<' -o --replace '$1'
+curl -fsSL gwern.net/sitemap.xml | rg '(http.*?)<' -o --replace '$1' | uniq

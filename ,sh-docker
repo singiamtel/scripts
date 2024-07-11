@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+
+# If docker is not installed, crash
+if ! command -v docker &> /dev/null
+then
+	echo "Docker could not be found. Please install docker and try again."
+	exit
+fi
+
+container="$1"
+
+if [ -z "$container" ]
+then
+	container=$(docker ps | tail -n +2 | fzf --prompt "Select a container: " | awk '{print $1}')
+fi
+
+echo "Attaching to container $container"
+
+docker exec -it $container /bin/bash

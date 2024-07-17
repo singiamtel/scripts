@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+
+
+source ~/.zshrc # Sketchy, but it works
+
+num_args=$#
+if [ $num_args -eq 0 ]; then
+    echo "No arguments provided"
+    exit 1
+fi
+
+
+args=("$@")
+last_arg=${args[$num_args]}
+everything_but_last=${args[1,$num_args-1]}
+
+dir=$(z -e $last_arg)
+
+if [ -z $dir ]; then
+	echo "No directory found"
+	exit 1
+fi
+
+echo "Copy $everything_but_last to $dir? (Y/n)"
+read answer
+
+# if yes, y, Y or empty, continue
+if [ -z $answer ] || [ $answer = "y" ] || [ $answer = "Y" ]; then
+	command cp -ir $everything_but_last $dir
+else
+	echo "Aborting"
+	exit 1
+fi

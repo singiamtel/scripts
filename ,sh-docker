@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 
 # If docker is not installed, crash
 if ! command -v docker &> /dev/null
@@ -14,6 +16,13 @@ if [ -z "$container" ]
 then
 	container=$(docker ps | tail -n +2 | fzf --prompt "Select a container: " | awk '{print $1}')
 fi
+
+if [ -z "$container" ]
+then
+	echo "No container selected"
+	exit
+fi
+
 
 echo "Attaching to container $container"
 

@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+
+import json
+import threading
+import subprocess
+from datetime import datetime
+from colorama import Fore, Style
+import colorama
+import argparse
+
+colorama.init()
+
+def ssh_connect_and_run_command(host, command):
+    try:
+        ssh_command = f"ssh {host} {command}"
+        process = subprocess.Popen(ssh_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        print(f"{Fore.GREEN}[{datetime.now()}] Running command on {host}...{Style.RESET_ALL}")
+
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                print(f"{Fore.CYAN}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
+        
+        error_output = process.stderr.read()
+        if error_output:
+            print(f"{Fore.RED}[{datetime.now()}] Error from {host}:\n{error_output.strip()}{Style.RESET_ALL}")
+
+    except Exception as e:
+        print(f"{Fore.RED}[{datetime.now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
+
+def main():
+    parser = argparse.ArgumentParser(description='Run a command on multiple hosts via SSH.')
+    parser.add_argument('json_file', type=str, help='The JSON file containing the list of hosts')
+    parser.add_argument('hostgroup', type=str, help='The hostgroup to run the command on')
+    parser.add_argument('command', nargs=argparse.REMAINDER , help='The command to run on each host')
+    args = parser.parse_args()
+
+    with open(args.json_file, 'r') as file:
+        data = json.load(file)
+    
+    hostgroup = data.get(args.hostgroup)
+    if not hostgroup:
+        print(f"{Fore.RED}Hostgroup '{args.hostgroup}' not found in JSON file{Style.RESET_ALL}")
+        return 1
+
+    
+    threads = []
+    for host in hostgroup:
+        thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command)))
+        threads.append(thread)
+        thread.start()
+    
+    for thread in threads:
+        thread.join()
+
+if __name__ == "__main__":
+    exit(main())

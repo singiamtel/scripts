@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+FILE_W=30;
+BLAME_FORMAT="%C(auto) %h %ad %C(dim white)%an %C(auto)%s";
+
+for f in $1*;
+do
+git --no-pager log -n 1 --pretty=format:"$(printf "%-*s" $FILE_W "$f") $BLAME_FORMAT" -- $f; echo
+done;

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
 
-read input
+input=$1
+
+if [ -z "$input" ]; then
+	read -r input
+fi
 
 echo "scale=10; $input" | bc
+

@@ -10,7 +10,7 @@ import argparse
 
 colorama.init()
 
-def ssh_connect_and_run_command(host, command):
+def ssh_connect_and_run_command(host, command, thread_color):
     try:
         ssh_command = f"ssh {host} {command}"
         process = subprocess.Popen(ssh_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -22,7 +22,7 @@ def ssh_connect_and_run_command(host, command):
             if output == '' and process.poll() is not None:
                 break
             if output:
-                print(f"{Fore.CYAN}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
+                print(f"{thread_color}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
         
         error_output = process.stderr.read()
         if error_output:
@@ -48,8 +48,15 @@ def main():
 
     
     threads = []
+    thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN, Fore.RED]
+    current_available_colors = thread_colors.copy()
     for host in hostgroup:
-        thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command)))
+        if not current_available_colors:
+            current_available_colors = thread_colors.copy()
+        # Pick a random colour for each thread, to make it easier to distinguish the output
+        # Don't repeat if possible
+        thread_color = current_available_colors.pop()
+        thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command), thread_color))
         threads.append(thread)
         thread.start()
     

@@ -18,15 +18,16 @@ def ssh_connect_and_run_command(host, command, thread_color):
         print(f"{Fore.GREEN}[{datetime.now()}] Running command on {host}...{Style.RESET_ALL}")
 
         while True:
+            assert process.stdout is not None, "stdout is None"
             output = process.stdout.readline()
             if output == '' and process.poll() is not None:
                 break
             if output:
                 print(f"{thread_color}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
-        
+        assert process.stderr is not None, "stderr is None"
         error_output = process.stderr.read()
         if error_output:
-            print(f"{Fore.RED}[{datetime.now()}] Error from {host}:\n{error_output.strip()}{Style.RESET_ALL}")
+            print(f"{thread_color}[{datetime.now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
 
     except Exception as e:
         print(f"{Fore.RED}[{datetime.now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
@@ -48,7 +49,7 @@ def main():
 
     
     threads = []
-    thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN, Fore.RED]
+    thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
     current_available_colors = thread_colors.copy()
     for host in hostgroup:
         if not current_available_colors:

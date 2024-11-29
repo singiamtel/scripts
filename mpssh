@@ -10,12 +10,13 @@ import argparse
 
 colorama.init()
 
-def ssh_connect_and_run_command(host, command, thread_color):
+def ssh_connect_and_run_command(host, command, thread_color, raw=False):
     try:
         ssh_command = f"ssh {host} {command}"
         process = subprocess.Popen(ssh_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
-        print(f"{Fore.GREEN}[{datetime.now()}] Running command on {host}...{Style.RESET_ALL}")
+
+        if not raw:
+          print(f"{Fore.GREEN}[{datetime.now()}] Running command on {host}...{Style.RESET_ALL}")
 
         while True:
             assert process.stdout is not None, "stdout is None"
@@ -23,17 +24,29 @@ def ssh_connect_and_run_command(host, command, thread_color):
             if output == '' and process.poll() is not None:
                 break
             if output:
-                print(f"{thread_color}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
+                if raw:
+                  print(f"{host}: {output.strip()}")
+                else:
+                  print(f"{thread_color}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
         assert process.stderr is not None, "stderr is None"
         error_output = process.stderr.read()
         if error_output:
-            print(f"{thread_color}[{datetime.now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
-
+            if raw:
+              print(f"{host}: {error_output.strip()}")
+            else:
+              print(f"{thread_color}[{datetime.now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
+        if process.returncode != 0:
+            raise Exception(f"Command failed on {host}")
     except Exception as e:
-        print(f"{Fore.RED}[{datetime.now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
+        if not raw:
+          print(f"{Fore.RED}[{datetime.now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
+        else:
+          print(f"Failed to connect to {host}: {e}")
+        raise
 
 def main():
     parser = argparse.ArgumentParser(description='Run a command on multiple hosts via SSH.')
+    parser.add_argument('--raw', action='store_true', help='Print raw output without any formatting')
     parser.add_argument('json_file', type=str, help='The JSON file containing the list of hosts')
     parser.add_argument('hostgroup', type=str, help='The hostgroup to run the command on')
     parser.add_argument('command', nargs=argparse.REMAINDER , help='The command to run on each host')
@@ -41,28 +54,40 @@ def main():
 
     with open(args.json_file, 'r') as file:
         data = json.load(file)
-    
+
     hostgroup = data.get(args.hostgroup)
     if not hostgroup:
-        print(f"{Fore.RED}Hostgroup '{args.hostgroup}' not found in JSON file{Style.RESET_ALL}")
+        if not args.raw:
+          print(f"{Fore.RED}Hostgroup '{args.hostgroup}' not found in JSON file{Style.RESET_ALL}")
+        else:
+          print(f"Hostgroup '{args.hostgroup}' not found in JSON file")
         return 1
 
-    
+
     threads = []
     thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
     current_available_colors = thread_colors.copy()
+    happy = True
     for host in hostgroup:
-        if not current_available_colors:
-            current_available_colors = thread_colors.copy()
-        # Pick a random colour for each thread, to make it easier to distinguish the output
-        # Don't repeat if possible
-        thread_color = current_available_colors.pop()
-        thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command), thread_color))
-        threads.append(thread)
-        thread.start()
-    
+        try:
+          if not current_available_colors:
+              current_available_colors = thread_colors.copy()
+          # Pick a random colour for each thread, to make it easier to distinguish the output
+          # Don't repeat if possible
+          thread_color = current_available_colors.pop()
+          thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command), thread_color, args.raw))
+          threads.append(thread)
+          thread.start()
+        except Exception:
+          happy = False
+
     for thread in threads:
-        thread.join()
+        try:
+            thread.join()
+        except Exception:
+            happy = False
+    if not happy:
+        return 1
 
 if __name__ == "__main__":
     exit(main())

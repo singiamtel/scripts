@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-FILE_W=30;
 BLAME_FORMAT="%C(auto) %h %ai";
 
 (

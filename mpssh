@@ -10,13 +10,16 @@ import argparse
 
 colorama.init()
 
+def now():
+  return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
 def ssh_connect_and_run_command(host, command, thread_color, raw=False):
     try:
         ssh_command = f"ssh -o ServerAliveInterval=300 -o ServerAliveCountMax=3 {host} {command}"
         process = subprocess.Popen(ssh_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         if not raw:
-          print(f"{Fore.GREEN}[{datetime.now()}] Running command on {host}...{Style.RESET_ALL}")
+          print(f"{Fore.GREEN}[{now()}] Running command on {host}...{Style.RESET_ALL}")
 
         while True:
             assert process.stdout is not None, "stdout is None"
@@ -27,19 +30,19 @@ def ssh_connect_and_run_command(host, command, thread_color, raw=False):
                 if raw:
                   print(f"{host}: {output.strip()}")
                 else:
-                  print(f"{thread_color}[{datetime.now()}] {host}: {output.strip()}{Style.RESET_ALL}")
+                  print(f"{thread_color}[{now()}] {host}: {output.strip()}{Style.RESET_ALL}")
         assert process.stderr is not None, "stderr is None"
         error_output = process.stderr.read()
         if error_output:
             if raw:
               print(f"{host}: {error_output.strip()}")
             else:
-              print(f"{thread_color}[{datetime.now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
+              print(f"{thread_color}[{now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
         if process.returncode != 0:
             raise Exception(f"Command failed on {host}")
     except Exception as e:
         if not raw:
-          print(f"{Fore.RED}[{datetime.now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
+          print(f"{Fore.RED}[{now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
         else:
           print(f"Failed to connect to {host}: {e}")
         raise

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# trim: Removes leading and trailing whitespace from each line of input.
+
+sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'

@@ -1,33 +1,44 @@
 #!/usr/bin/env bash
 
-cleanup() {
-  # Kill any child processes
-  echo "Cleaning up child processes..."
-  pkill -P $$
+max_time=60 # seconds
 
-  # Exit the script
-  exit 0
+cleanup() {
+    # Kill any child processes
+    echo "Cleaning up child processes..."
+    pkill -P $$
+
+    # Exit the script
+    exit 0
 }
 
 cpu_num=$1
 
 if [ $# -ne 1 ]; then
-  cpu_num=$(nproc)
+    cpu_num=$(nproc)
 fi
 
-
-echo "cpu_num: $cpu_num"
+echo "Using $cpu_num CPUs, max time $max_time seconds"
 
 # Register the cleanup function to run on SIGINT and SIGTERM signals
 trap cleanup SIGINT SIGTERM
 
-for i in `seq $cpu_num`
+function loop() {
+    while true
+    do
+        j=1
+    done
+}
+
+# Start the timer in the background
+(
+    sleep $max_time
+    echo "Maximum time ($max_time seconds) reached. Cleaning up..."
+    cleanup
+) &
+
+for i in $(seq "$cpu_num")
 do
-	echo "cpu$i"
-	while true
-	do
-		j=1
-	done &
+    loop "$i" &
 done
 
 # Wait for child processes to complete

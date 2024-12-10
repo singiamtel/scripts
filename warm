@@ -17,7 +17,7 @@ if [ $# -ne 1 ]; then
     cpu_num=$(nproc)
 fi
 
-echo "Using $cpu_num CPUs, max time $max_time seconds"
+echo "Number of CPUs: $cpu_num, max time $max_time seconds"
 
 # Register the cleanup function to run on SIGINT and SIGTERM signals
 trap cleanup SIGINT SIGTERM
@@ -31,10 +31,12 @@ function loop() {
 
 # Start the timer in the background
 (
+    set -e
     sleep $max_time
     echo "Maximum time ($max_time seconds) reached. Cleaning up..."
-    cleanup
+    cleanup > /dev/null
 ) &
+    
 
 for i in $(seq "$cpu_num")
 do

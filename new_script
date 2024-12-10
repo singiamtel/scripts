@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <name>"
+    exit 1
+fi
+
+name=$1
+
+# check if exists
+
+if [ -e "$HOME/.local/bin/scripts/$name" ]; then
+    echo "Script with the same name already exists"
+    exit 1
+fi
+
+touch "$HOME/.local/bin/scripts/$name"
+chmod +x "$HOME/.local/bin/scripts/$name"
+
+echo "#!/usr/bin/env bash" > "$HOME/.local/bin/scripts/$name"
+
+$EDITOR "$HOME/.local/bin/scripts/$name"

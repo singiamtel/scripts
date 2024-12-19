@@ -14,7 +14,7 @@ colorama.init()
 def now():
   return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
-def ssh_connect_and_run_command(host, command, thread_color, raw=False):
+def ssh_connect_and_run_command(host, command, thread_color, raw=False, spicy=False):
     try:
         ssh_command = f"ssh -o ServerAliveInterval=300 -o ServerAliveCountMax=3 {host} {command}"
         process = subprocess.Popen(ssh_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -40,7 +40,13 @@ def ssh_connect_and_run_command(host, command, thread_color, raw=False):
             else:
               print(f"{thread_color}[{now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
         if process.returncode != 0:
+          if spicy:
             raise Exception(f"Command failed on {host}")
+          else:
+            if raw:
+              print(f"{host}: Command failed with return code {process.returncode}")
+            else:
+              print(f"{thread_color}[{now()}] {host}: {Fore.RED}Command failed with return code {process.returncode}{Style.RESET_ALL}")
     except Exception as e:
         if not raw:
           print(f"{Fore.RED}[{now()}] Failed to connect to {host}: {e}{Style.RESET_ALL}")
@@ -51,6 +57,7 @@ def ssh_connect_and_run_command(host, command, thread_color, raw=False):
 def main():
     parser = argparse.ArgumentParser(description='Run a command on multiple hosts via SSH.')
     parser.add_argument('--raw', action='store_true', help='Print raw output without any formatting')
+    parser.add_argument('--spicy', action='store_true', help='Exit with error if any command fails')
     parser.add_argument('json_file', type=str, help='The JSON file containing the list of hosts')
     parser.add_argument('hostgroup', type=str, help='The hostgroup to run the command on')
     parser.add_argument('command', nargs=argparse.REMAINDER , help='The command to run on each host')
@@ -79,7 +86,7 @@ def main():
           # Pick a random colour for each thread, to make it easier to distinguish the output
           # Don't repeat if possible
           thread_color = current_available_colors.pop()
-          thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command), thread_color, args.raw))
+          thread = threading.Thread(target=ssh_connect_and_run_command, args=(host, ' '.join(args.command), thread_color, args.raw, args.spicy))
           threads.append(thread)
           thread.start()
         except Exception:

@@ -24,6 +24,7 @@ trap cleanup SIGINT SIGTERM
 
 function loop() {
 	while true; do
+	 	# shellcheck disable=SC2034
 		j=1
 	done
 }

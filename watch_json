@@ -18,6 +18,9 @@ fi
 if [ $# -ne 2 ]; then
 	# Default filter
 	filter="."
+else
+	filter="$2"
 fi
 
-echo "$1" | entr -c -s "jq '$2' $1"
+
+echo "$1" | entr -c -s "jq '$filter' $1"

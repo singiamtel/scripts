@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 init()
 
+
 @dataclass
 class SSHResult:
     returncode: int
@@ -20,6 +21,7 @@ class SSHResult:
     stderr: str
     host: str
     error: Optional[str] = None
+
 
 def setup_logging(raw: bool = False) -> None:
     class ColoredFormatter(logging.Formatter):
@@ -30,9 +32,8 @@ def setup_logging(raw: bool = False) -> None:
                 else:
                     record.msg = f"{record.thread_color}[{now()}] {record.host}: {record.msg}{Style.RESET_ALL}"
             else:
-                if not raw:
-                    if record.levelno == logging.ERROR:
-                        record.msg = f"{Fore.RED}[{now()}] {record.msg}{Style.RESET_ALL}"
+                if not raw and record.levelno == logging.ERROR:
+                    record.msg = f"{Fore.RED}[{now()}] {record.msg}{Style.RESET_ALL}"
             return super().format(record)
 
     # Create handlers for stdout and stderr
@@ -47,11 +48,11 @@ def setup_logging(raw: bool = False) -> None:
         colored_formatter = ColoredFormatter('%(message)s')
         stdout_handler.setFormatter(colored_formatter)
         stderr_handler.setFormatter(colored_formatter)
-    
+
     # Set level filters
     stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
     stderr_handler.setLevel(logging.ERROR)
-    
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     # Remove any existing handlers
@@ -60,12 +61,15 @@ def setup_logging(raw: bool = False) -> None:
     logger.addHandler(stdout_handler)
     logger.addHandler(stderr_handler)
 
+
 def now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
 
 def escape_shell_command(command: str) -> str:
     """Escape special shell characters in the command."""
     return command.replace("'", "'\\''")
+
 
 async def ssh_connect_and_run_command(
     host: str,
@@ -85,19 +89,21 @@ async def ssh_connect_and_run_command(
         )
 
         stdout, stderr = (x.decode('utf-8') for x in await process.communicate())
-        
+
         if stdout:
             for line in stdout.splitlines():
                 if raw:
                     logging.info(line.strip(), extra={'host': host})
                 else:
-                    logging.info(line.strip(), extra={'host': host, 'thread_color': thread_color})
+                    logging.info(line.strip(), extra={
+                                 'host': host, 'thread_color': thread_color})
 
         if stderr:
             if raw:
                 logging.error(stderr.strip(), extra={'host': host})
             else:
-                logging.error(stderr.strip(), extra={'host': host, 'thread_color': thread_color})
+                logging.error(stderr.strip(), extra={
+                              'host': host, 'thread_color': thread_color})
 
         return SSHResult(
             returncode=process.returncode or 0,
@@ -117,19 +123,21 @@ async def ssh_connect_and_run_command(
             error=error_msg
         )
 
+
 def validate_command(command: List[str]) -> bool:
     if not command:
         logging.error("No command provided")
         return False
-    
+
     dangerous_commands = ['rm -rf /', 'mkfs']
     cmd = ' '.join(command)
-    
+
     if any(dangerous in cmd for dangerous in dangerous_commands):
         logging.error("Potentially dangerous command detected")
         return False
-    
+
     return True
+
 
 async def main() -> int:
     parser = argparse.ArgumentParser(
@@ -151,8 +159,10 @@ async def main() -> int:
         type=str,
         help='The JSON file containing the list of hosts'
     )
-    parser.add_argument('hostgroup', type=str, help='The hostgroup to run the command on')
-    parser.add_argument('command', nargs=argparse.REMAINDER, help='The command to run on each host')
+    parser.add_argument('hostgroup', type=str,
+                        help='The hostgroup to run the command on')
+    parser.add_argument('command', nargs=argparse.REMAINDER,
+                        help='The command to run on each host')
     args = parser.parse_args()
 
     setup_logging(args.raw)
@@ -164,7 +174,7 @@ async def main() -> int:
         json_path = Path(args.json_file)
         if not json_path.exists():
             raise FileNotFoundError(f"JSON file not found: {args.json_file}")
-        
+
         with open(json_path, 'r') as file:
             data = json.load(file)
     except json.JSONDecodeError as e:
@@ -179,12 +189,14 @@ async def main() -> int:
         logging.error(f"Hostgroup '{args.hostgroup}' not found in JSON file")
         return 1
 
-    thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
+    thread_colors = [Fore.GREEN, Fore.YELLOW,
+                     Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
     tasks = []
-    
+
     if not args.raw:
-        logging.info(f"Executing commands on {len(hostgroup)} host{'' if len(hostgroup) == 1 else 's'}...")
-    
+        logging.info(
+            f"Executing commands on {len(hostgroup)} host{'' if len(hostgroup) == 1 else 's'}...")
+
     for i, host in enumerate(hostgroup):
         thread_color = thread_colors[i % len(thread_colors)]
         task = asyncio.create_task(
@@ -206,9 +218,11 @@ async def main() -> int:
     failed_hosts = [r.host for r in results if r.returncode != 0]
     if failed_hosts:
         if args.raw:
-            logging.error(f"Failed hosts: {', '.join(failed_hosts)}", extra={'host': 'all'})
+            logging.error(
+                f"Failed hosts: {', '.join(failed_hosts)}", extra={'host': 'all'})
         else:
-            logging.error(f"Commands failed on hosts: {', '.join(failed_hosts)}", extra={'host': 'all'})
+            logging.error(
+                f"Commands failed on hosts: {', '.join(failed_hosts)}", extra={'host': 'all'})
         return 1
 
     return 0

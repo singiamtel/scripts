@@ -65,7 +65,6 @@ async def ssh_connect_and_run_command(
     try:
         escaped_command = escape_shell_command(command)
         ssh_command = f"ssh -o ConnectTimeout={timeout} {host} '{escaped_command}'"
-        print(ssh_command)
 
         process = await asyncio.create_subprocess_shell(
             ssh_command,

@@ -1,67 +1,126 @@
 #!/usr/bin/env python3
 
 import json
-import threading
-import subprocess
+import asyncio
+from typing import List, Optional
 from datetime import datetime
 from colorama import Fore, Style, init
 import argparse
 import sys
+from pathlib import Path
+import logging
+from dataclasses import dataclass
 
 init()
 
-def now():
-  return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+@dataclass
+class SSHResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    host: str
+    error: Optional[str] = None
 
-def ssh_connect_and_run_command(
-    host, command, thread_color, raw=False, timeout=30
-):
+def setup_logging(raw: bool = False) -> None:
+    class ColoredFormatter(logging.Formatter):
+        def format(self, record):
+            if hasattr(record, 'thread_color'):
+                if record.levelno == logging.ERROR:
+                    record.msg = f"{record.thread_color}[{now()}] {record.host}:{Fore.RED} {record.msg}{Style.RESET_ALL}"
+                else:
+                    record.msg = f"{record.thread_color}[{now()}] {record.host}: {record.msg}{Style.RESET_ALL}"
+            else:
+                if not raw:
+                    if record.levelno == logging.ERROR:
+                        record.msg = f"{Fore.RED}[{now()}] {record.msg}{Style.RESET_ALL}"
+            return super().format(record)
+
+    handler = logging.StreamHandler()
+    if raw:
+        handler.setFormatter(logging.Formatter('%(message)s' if not hasattr(logging.LogRecord, 'host') else '%(host)s: %(message)s'))
+    else:
+        handler.setFormatter(ColoredFormatter('%(message)s'))
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    # Remove any existing handlers
+    for hdlr in logger.handlers[:]:
+        logger.removeHandler(hdlr)
+    logger.addHandler(handler)
+
+def now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+def escape_shell_command(command: str) -> str:
+    """Escape special shell characters in the command."""
+    return command.replace("'", "'\\''")
+
+async def ssh_connect_and_run_command(
+    host: str,
+    command: str,
+    thread_color: str,
+    raw: bool = False,
+    timeout: int = 30
+) -> SSHResult:
     try:
-        ssh_command = f"ssh -o ConnectTimeout={timeout} {host} '{command}'"
+        escaped_command = escape_shell_command(command)
+        ssh_command = f"ssh -o ConnectTimeout={timeout} {host} '{escaped_command}'"
         print(ssh_command)
-        process = subprocess.Popen(
+
+        process = await asyncio.create_subprocess_shell(
             ssh_command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
 
-        if not raw:
-          print(f"{Fore.GREEN}[{now()}] Running command on {host}...{Style.RESET_ALL}")
-
-        while True:
-            assert process.stdout is not None, "stdout is None"
-            output = process.stdout.readline()
-            if output == '' and process.poll() is not None:
-                break
-            if output:
+        stdout, stderr = (x.decode('utf-8') for x in await process.communicate())
+        
+        if stdout:
+            for line in stdout.splitlines():
                 if raw:
-                  print(f"{host}: {output.strip()}")
+                    logging.info(line.strip(), extra={'host': host})
                 else:
-                  print(f"{thread_color}[{now()}] {host}: {output.strip()}{Style.RESET_ALL}")
-        assert process.stderr is not None, "stderr is None"
-        error_output = process.stderr.read()
-        if error_output:
-            if raw:
-              print(f"{host}: {error_output.strip()}")
-            else:
-              print(f"{thread_color}[{now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
-        if process.returncode != 0:
-          if raw:
-            print(f"{host}: Command failed with return code {process.returncode}")
-          else:
-            print(f"{thread_color}[{now()}] {host}: {Fore.RED}Command failed with return code {process.returncode}{Style.RESET_ALL}")
-          return process.returncode
-    except Exception as e:
-        if not raw:
-          print(f"{Fore.RED}[{now()}] Failed to connect to {host}: {Style.RESET_ALL}")
-        else:
-          print(f"Failed to connect to {host}")
-        return -1
-    return 0
+                    logging.info(line.strip(), extra={'host': host, 'thread_color': thread_color})
 
-def main():
+        if stderr:
+            if raw:
+                logging.error(stderr.strip(), extra={'host': host})
+            else:
+                logging.error(stderr.strip(), extra={'host': host, 'thread_color': thread_color})
+
+        return SSHResult(
+            returncode=process.returncode or 0,
+            stdout=stdout,
+            stderr=stderr,
+            host=host
+        )
+
+    except Exception as e:
+        error_msg = f"Failed to connect to {host}: {str(e)}"
+        logging.error(error_msg)
+        return SSHResult(
+            returncode=-1,
+            stdout="",
+            stderr=str(e),
+            host=host,
+            error=error_msg
+        )
+
+def validate_command(command: List[str]) -> bool:
+    if not command:
+        logging.error("No command provided")
+        return False
+    
+    dangerous_commands = ['rm -rf /', 'mkfs']
+    cmd = ' '.join(command)
+    
+    if any(dangerous in cmd for dangerous in dangerous_commands):
+        logging.error("Potentially dangerous command detected")
+        return False
+    
+    return True
+
+async def main() -> int:
     parser = argparse.ArgumentParser(
         description='Run a command on multiple hosts via SSH.'
     )
@@ -73,7 +132,7 @@ def main():
     parser.add_argument(
         '--timeout',
         type=int,
-        default=3,
+        default=10,
         help='SSH connection timeout in seconds'
     )
     parser.add_argument(
@@ -82,49 +141,66 @@ def main():
         help='The JSON file containing the list of hosts'
     )
     parser.add_argument('hostgroup', type=str, help='The hostgroup to run the command on')
-    parser.add_argument('command', nargs=argparse.REMAINDER , help='The command to run on each host')
+    parser.add_argument('command', nargs=argparse.REMAINDER, help='The command to run on each host')
     args = parser.parse_args()
 
-    with open(args.json_file, 'r') as file:
-        data = json.load(file)
+    setup_logging(args.raw)
+
+    if not validate_command(args.command):
+        return 1
+
+    try:
+        json_path = Path(args.json_file)
+        if not json_path.exists():
+            raise FileNotFoundError(f"JSON file not found: {args.json_file}")
+        
+        with open(json_path, 'r') as file:
+            data = json.load(file)
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON file: {e}")
+        return 1
+    except Exception as e:
+        logging.error(f"Error reading JSON file: {e}")
+        return 1
 
     hostgroup = data.get(args.hostgroup)
     if not hostgroup:
-        if not args.raw:
-          print(f"{Fore.RED}Hostgroup '{args.hostgroup}' not found in JSON file{Style.RESET_ALL}")
-        else:
-          print(f"Hostgroup '{args.hostgroup}' not found in JSON file")
+        logging.error(f"Hostgroup '{args.hostgroup}' not found in JSON file")
         return 1
 
-    threads = []
-    results = {}
     thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
-    current_available_colors = thread_colors.copy()
-
-    for host in hostgroup:
-        if not current_available_colors:
-            current_available_colors = thread_colors.copy()
-        thread_color = current_available_colors.pop()
-        
-        # Create a thread with a wrapper function that stores the result
-        def thread_wrapper(host=host, thread_color=thread_color):
-            results[host] = ssh_connect_and_run_command(
+    tasks = []
+    
+    if not args.raw:
+        logging.info(f"Executing commands on {len(hostgroup)} host{'' if len(hostgroup) == 1 else 's'}...")
+    
+    for i, host in enumerate(hostgroup):
+        thread_color = thread_colors[i % len(thread_colors)]
+        task = asyncio.create_task(
+            ssh_connect_and_run_command(
                 host,
                 ' '.join(args.command),
                 thread_color,
                 args.raw,
                 args.timeout
             )
-        
-        thread = threading.Thread(target=thread_wrapper)
-        threads.append(thread)
-        thread.start()
+        )
+        tasks.append(task)
 
-    for thread in threads:
-        thread.join()
+    results = await asyncio.gather(*tasks)
 
-    # Return 1 if any command failed, 0 otherwise
-    return 1 if any(code != 0 for code in results.values()) else 0
+    if not args.raw:
+        logging.info("All commands completed.")
+
+    failed_hosts = [r.host for r in results if r.returncode != 0]
+    if failed_hosts:
+        if args.raw:
+            logging.error(f"Failed hosts: {', '.join(failed_hosts)}")
+        else:
+            logging.error(f"Commands failed on hosts: {', '.join(failed_hosts)}")
+        return 1
+
+    return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))

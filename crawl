@@ -7,6 +7,7 @@ from collections import deque
 import json
 import sys
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def get_domain(url):
     """Extracts the (scheme, netloc) part of a URL to identify its domain."""
@@ -18,93 +19,97 @@ def is_same_domain(url, base_domain):
     scheme, netloc = get_domain(url)
     return (scheme, netloc) == base_domain
 
-def crawl_site(start_url):
+def process_url(url_info):
+    """Process a single URL and return its data."""
+    url, base_domain, depth = url_info
+    result = {"url": url, "links": []}
+    
+    try:
+        response = requests.get(url, timeout=10)
+        status_code = response.status_code
+        
+        if status_code == 404:
+            print(f"Found 404: {url}", file=sys.stderr)
+            return url, {"status_code": 404, "size": 0, "links": []}
+            
+        page_content = response.content
+        size_in_bytes = len(page_content)
+        result.update({"status_code": status_code, "size": size_in_bytes})
+        
+        # Only proceed if it's HTML and within depth limit
+        content_type = response.headers.get("Content-Type", "")
+        if "text/html" in content_type.lower() and depth < 1:
+            soup = BeautifulSoup(page_content, "html.parser")
+            for link_tag in soup.find_all("a", href=True):
+                raw_link = link_tag.get("href")
+                next_link = urljoin(url, raw_link)
+                
+                # For internal links
+                if is_same_domain(next_link, base_domain):
+                    if depth + 1 <= 1:
+                        result["links"].append((next_link, depth + 1))
+                # For external links
+                elif depth < 1:
+                    result["links"].append((next_link, 1))
+                    
+            print(f"Found {len(result['links'])} new links from {url}", file=sys.stderr)
+            
+    except requests.RequestException as e:
+        print(f"Error fetching {url}: {e}", file=sys.stderr)
+        return url, {"status_code": "error", "size": 0, "links": []}
+        
+    return url, result
+
+def crawl_site(start_url, max_workers=10):
     print(f"Starting crawl from {start_url}", file=sys.stderr)
-    # Add default scheme if none is provided
     if not start_url.startswith(('http://', 'https://')):
         start_url = 'http://' + start_url
 
-    # Domain of the start URL
     base_domain = get_domain(start_url)
     print(f"Base domain: {base_domain[0]}://{base_domain[1]}", file=sys.stderr)
 
-    # We will track URLs to crawl with a queue of (url, depth).
-    queue = deque([(start_url, 0)])
-
-    # Set for visited URLs (so we don't fetch the same URL multiple times)
-    visited = set()
-
-    # Store results as {url: {"status_code": ..., "size": ...}}
+    # Track URLs to process and those we've seen
+    to_process = [(start_url, base_domain, 0)]
+    seen_urls = {start_url}
     results = {}
 
-    # We allow up to depth=1 for internal links; 
-    # external links found at any level are only visited with depth=1 (not followed further).
-    while queue:
-        current_url, depth = queue.popleft()
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        while to_process:
+            # Process URLs in parallel batches
+            future_to_url = {
+                executor.submit(process_url, url_info): url_info[0]
+                for url_info in to_process
+            }
+            
+            to_process = []
+            
+            for future in as_completed(future_to_url):
+                url = future_to_url[future]
+                try:
+                    url, data = future.result()
+                    results[url] = data
+                    
+                    # Add new links to process
+                    for new_url, new_depth in data.get("links", []):
+                        if new_url not in seen_urls:
+                            seen_urls.add(new_url)
+                            to_process.append((new_url, base_domain, new_depth))
+                            
+                except Exception as e:
+                    print(f"Error processing {url}: {e}", file=sys.stderr)
+                    results[url] = {"status_code": "error", "size": 0}
 
-        # Avoid revisiting
-        if current_url in visited:
-            continue
-
-        visited.add(current_url)
-        print(f"Crawling: {current_url} (depth {depth})", file=sys.stderr)
-
-        try:
-            response = requests.get(current_url, timeout=10)
-            status_code = response.status_code
-
-            # Record status code
-            if status_code == 404:
-                print(f"Found 404: {current_url}", file=sys.stderr)
-                results[current_url] = {"status_code": 404, "size": 0}
-                continue
-
-            # Otherwise, gather size
-            page_content = response.content
-            size_in_bytes = len(page_content)
-            results[current_url] = {"status_code": status_code, "size": size_in_bytes}
-
-            # Only proceed if it's HTML (so we can parse links)
-            content_type = response.headers.get("Content-Type", "")
-            if "text/html" in content_type.lower():
-                # If within depth limit for internal links, parse further
-                if depth < 1:
-                    soup = BeautifulSoup(page_content, "html.parser")
-                    # Extract all <a> tags
-                    links_found = 0
-                    for link_tag in soup.find_all("a", href=True):
-                        raw_link = link_tag.get("href")
-                        next_link = urljoin(current_url, raw_link)
-
-                        # We only follow further if internal and depth < 1
-                        if is_same_domain(next_link, base_domain):
-                            # For internal links, we can go to depth+1
-                            if (next_link not in visited) and (depth + 1 <= 1):
-                                queue.append((next_link, depth + 1))
-                                links_found += 1
-                        else:
-                            # For external links, we only visit them once (depth 1),
-                            # but do not follow deeper external links
-                            if next_link not in visited and depth < 1:
-                                # Mark external with depth=1 so we don't follow its links
-                                queue.append((next_link, 1))
-                                links_found += 1
-                    print(f"Found {links_found} new links to crawl", file=sys.stderr)
-
-        except requests.RequestException as e:
-            print(f"Error fetching {current_url}: {e}", file=sys.stderr)
-            results[current_url] = {"status_code": "error", "size": 0}
-
-    print(f"Crawl complete. Visited {len(visited)} URLs", file=sys.stderr)
+    print(f"Crawl complete. Visited {len(results)} URLs", file=sys.stderr)
     return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl a website and check for broken links and size limits')
     parser.add_argument('url', help='The URL to start crawling from')
     parser.add_argument('--max-size', type=int, help='Maximum allowed size in bytes for any page', default=None)
+    parser.add_argument('--workers', type=int, help='Number of parallel workers', default=10)
     args = parser.parse_args()
 
-    report = crawl_site(args.url)
+    report = crawl_site(args.url, max_workers=args.workers)
 
     has_errors = False
     size_exceeded = False

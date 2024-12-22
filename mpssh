@@ -14,7 +14,7 @@ def now():
   return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 def ssh_connect_and_run_command(
-    host, command, thread_color, raw=False, spicy=False, timeout=30
+    host, command, thread_color, raw=False, timeout=30
 ):
     try:
         ssh_command = f"ssh -o ConnectTimeout={timeout} {host} '{command}'"
@@ -48,19 +48,18 @@ def ssh_connect_and_run_command(
             else:
               print(f"{thread_color}[{now()}] {host}:{Fore.RED} {error_output.strip()}{Style.RESET_ALL}")
         if process.returncode != 0:
-          if spicy:
-            raise Exception(f"Command failed on {host}")
           if raw:
             print(f"{host}: Command failed with return code {process.returncode}")
           else:
             print(f"{thread_color}[{now()}] {host}: {Fore.RED}Command failed with return code {process.returncode}{Style.RESET_ALL}")
+          return process.returncode
     except Exception as e:
         if not raw:
           print(f"{Fore.RED}[{now()}] Failed to connect to {host}: {Style.RESET_ALL}")
         else:
           print(f"Failed to connect to {host}")
-        if spicy:  # Only raise if spicy mode is enabled
-            raise
+        return -1
+    return 0
 
 def main():
     parser = argparse.ArgumentParser(
@@ -70,11 +69,6 @@ def main():
         '--raw',
         action='store_true',
         help='Print raw output without any formatting'
-    )
-    parser.add_argument(
-        '--spicy',
-        action='store_true',
-        help='Exit with error if any command fails'
     )
     parser.add_argument(
         '--timeout',
@@ -102,41 +96,35 @@ def main():
           print(f"Hostgroup '{args.hostgroup}' not found in JSON file")
         return 1
 
-
     threads = []
+    results = {}
     thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
     current_available_colors = thread_colors.copy()
-    happy = True
+
     for host in hostgroup:
-        try:
-          if not current_available_colors:
-              current_available_colors = thread_colors.copy()
-          # Pick a random colour for each thread, to make it easier to distinguish the output
-          # Don't repeat if possible
-          thread_color = current_available_colors.pop()
-          thread = threading.Thread(
-              target=ssh_connect_and_run_command,
-              args=(
-                  host,
-                  ' '.join(args.command),
-                  thread_color,
-                  args.raw,
-                  args.spicy,
-                  args.timeout
-              )
-          )
-          threads.append(thread)
-          thread.start()
-        except Exception:
-          happy = False
+        if not current_available_colors:
+            current_available_colors = thread_colors.copy()
+        thread_color = current_available_colors.pop()
+        
+        # Create a thread with a wrapper function that stores the result
+        def thread_wrapper(host=host, thread_color=thread_color):
+            results[host] = ssh_connect_and_run_command(
+                host,
+                ' '.join(args.command),
+                thread_color,
+                args.raw,
+                args.timeout
+            )
+        
+        thread = threading.Thread(target=thread_wrapper)
+        threads.append(thread)
+        thread.start()
 
     for thread in threads:
-        try:
-            thread.join()
-        except Exception:
-            happy = False
-    if not happy:
-        return 1
+        thread.join()
+
+    # Return 1 if any command failed, 0 otherwise
+    return 1 if any(code != 0 for code in results.values()) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

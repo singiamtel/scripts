@@ -7,7 +7,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 # The files to process
-file="$@"
+file="$*"
 
 # Check if the file exists
 for file in "$@"; do

@@ -2,7 +2,7 @@
 
 import json
 import asyncio
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 from colorama import Fore, Style, init
 import argparse
@@ -124,21 +124,6 @@ async def ssh_connect_and_run_command(
         )
 
 
-def validate_command(command: List[str]) -> bool:
-    if not command:
-        logging.error("No command provided")
-        return False
-
-    dangerous_commands = ['rm -rf /', 'mkfs']
-    cmd = ' '.join(command)
-
-    if any(dangerous in cmd for dangerous in dangerous_commands):
-        logging.error("Potentially dangerous command detected")
-        return False
-
-    return True
-
-
 async def main() -> int:
     parser = argparse.ArgumentParser(
         description='Run a command on multiple hosts via SSH.'
@@ -166,9 +151,6 @@ async def main() -> int:
     args = parser.parse_args()
 
     setup_logging(args.raw)
-
-    if not validate_command(args.command):
-        return 1
 
     try:
         json_path = Path(args.json_file)

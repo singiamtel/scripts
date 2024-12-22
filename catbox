@@ -3,22 +3,21 @@
 FILENAME="$1"
 FILE_HOST_URL="https://catbox.moe/user/api.php"
 
-
 # if filename is empty, get the filename from stdin
 if [[ -z "$FILENAME" ]]; then
-    FILENAME=$(cat)
+	FILENAME=$(cat)
 fi
 
 if [[ ! -f "$FILENAME" ]]; then
-  echo "Error: File '$FILENAME' does not exist."
-  exit 1
+	echo "Error: File '$FILENAME' does not exist."
+	exit 1
 fi
 
 MIMETYPE=$(file --mime-type -b "$FILENAME")
 
 response=$(curl -s -X POST "$FILE_HOST_URL" \
-  -F "reqtype=fileupload" \
-  -F "userhash=" \
-  -F "fileToUpload=@$FILENAME;type=$MIMETYPE")
+	-F "reqtype=fileupload" \
+	-F "userhash=" \
+	-F "fileToUpload=@$FILENAME;type=$MIMETYPE")
 
 echo "Response from server: $response"

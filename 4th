@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec awk '{ print $4; }' $*
+exec awk '{ print $4; }' "$*"

@@ -5,22 +5,19 @@
 # Usage: watch_json <file> <jq filter>
 
 # Check if jq is installed
-if ! command -v jq &> /dev/null
-then
+if ! command -v jq &>/dev/null; then
 	echo "jq could not be found"
 	exit
 fi
 # Check if entr is installed
-if ! command -v entr &> /dev/null
-then
+if ! command -v entr &>/dev/null; then
 	echo "entr could not be found"
 	exit
 fi
 
-if [ $# -ne 2 ]
-then
+if [ $# -ne 2 ]; then
 	# Default filter
 	filter="."
 fi
 
-echo $1 | entr -c -s "jq '$2' $1"
+echo "$1" | entr -c -s "jq '$2' $1"

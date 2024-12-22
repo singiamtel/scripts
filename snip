@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
 # Change to the directory containing the snippets
-cd ~/wsp/gists
+cd ~/wsp/gists || exit
 
 # Use fzf to select a file
 selected_file=$(fd -H . ~/wsp/gists/ --type f | fzf)
 
 # Check if a file was selected
 if [ -n "$selected_file" ]; then
-    # Copy the selected file to the current working directory
-    cp "$selected_file" "$OLDPWD"
-    echo "File '$selected_file' has been copied to $OLDPWD"
+	# Copy the selected file to the current working directory
+	cp "$selected_file" "$OLDPWD"
+	echo "File '$selected_file' has been copied to $OLDPWD"
 else
-    echo "No file selected."
+	echo "No file selected."
 fi

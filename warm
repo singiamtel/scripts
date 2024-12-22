@@ -3,18 +3,18 @@
 max_time=60 # seconds
 
 cleanup() {
-    # Kill any child processes
-    echo "Cleaning up child processes..."
-    pkill -P $$
+	# Kill any child processes
+	echo "Cleaning up child processes..."
+	pkill -P $$
 
-    # Exit the script
-    exit 0
+	# Exit the script
+	exit 0
 }
 
 cpu_num=$1
 
 if [ $# -ne 1 ]; then
-    cpu_num=$(nproc)
+	cpu_num=$(nproc)
 fi
 
 echo "Number of CPUs: $cpu_num, max time $max_time seconds"
@@ -23,24 +23,21 @@ echo "Number of CPUs: $cpu_num, max time $max_time seconds"
 trap cleanup SIGINT SIGTERM
 
 function loop() {
-    while true
-    do
-        j=1
-    done
+	while true; do
+		j=1
+	done
 }
 
 # Start the timer in the background
 (
-    set -e
-    sleep $max_time
-    echo "Maximum time ($max_time seconds) reached. Cleaning up..."
-    cleanup > /dev/null
+	set -e
+	sleep $max_time
+	echo "Maximum time ($max_time seconds) reached. Cleaning up..."
+	cleanup >/dev/null
 ) &
-    
 
-for i in $(seq "$cpu_num")
-do
-    loop "$i" &
+for i in $(seq "$cpu_num"); do
+	loop "$i" &
 done
 
 # Wait for child processes to complete

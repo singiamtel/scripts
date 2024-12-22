@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec awk '{ print $(NF); }' $*
+exec awk '{ print $(NF); }' "$@"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 if [ $# -ne 2 ]; then
-  echo "Usage: hl <color> <pattern>"
-  exit 1
+	echo "Usage: hl <color> <pattern>"
+	exit 1
 fi
 
 function highlight() {
@@ -14,7 +14,7 @@ function highlight() {
 	fg_color_map[blue]=34
 	fg_color_map[magenta]=35
 	fg_color_map[cyan]=36
-	 
+
 	fg_c=$(echo -e "\e[1;${fg_color_map[$1]}m")
 	c_rs=$'\e[0m'
 	sed -u s"/$2/$fg_c$2$c_rs/g"

@@ -47,17 +47,17 @@ function date_to_before_after {
 }
 
 date=$@
-before_after=$(date_to_before_after $date)
-before=$(echo $before_after | cut -d ' ' -f 1)
-after=$(echo $before_after | cut -d ' ' -f 2)
+before_after=$(date_to_before_after "$date")
+before=$(echo "$before_after" | cut -d ' ' -f 1)
+after=$(echo "$before_after" | cut -d ' ' -f 2)
 
 # Get all commits made by me on the given day, and highlight the commit message based on the commit type.
 # This assumes that the commit message is of the form: <type>(<scope>): <message> as specified by conventionalcommits.org
 # It also assumes that you have hl somewhere in your path
 for repo in ${repos[@]}; do
-	cd $repo
+	cd "$repo"
 	# Tested with git 2.39.2
-	work=$(git --no-pager log --oneline --pretty=oneline --author=$ME --decorate --color=always $extra_args | head | hl cyan 'fix\(?.*?\)?: ' | hl green 'feat\(?.*?\)?: ' | hl blue 'chore\(?.*?\)?: ' | hl yellow 'docs\(?.*?\)?: ' | hl magenta 'test\(?.*?\)?: ' | hl magenta 'refactor\(?.*?\)?: ' | hl red 'revert\(?.*?\)?: ' | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch" | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch")
+	work=$(git --no-pager log --oneline --pretty=oneline --author="$ME" --decorate --color=always "$extra_args" | head | hl cyan 'fix\(?.*?\)?: ' | hl green 'feat\(?.*?\)?: ' | hl blue 'chore\(?.*?\)?: ' | hl yellow 'docs\(?.*?\)?: ' | hl magenta 'test\(?.*?\)?: ' | hl magenta 'refactor\(?.*?\)?: ' | hl red 'revert\(?.*?\)?: ' | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch" | hl red "Merge branch" | hl red "Merge pull request" | hl red "Merge remote-tracking branch")
 	if [ -n "$work" ]; then
 		git remote -v
 		echo "Repo: $(git remote -v | head -n 1 | awk '{print $2}' | sed 's/.*\///' | sed 's/\.git//')"

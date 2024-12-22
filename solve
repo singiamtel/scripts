@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-
 input=$1
 
 if [ -z "$input" ]; then
@@ -8,4 +7,3 @@ if [ -z "$input" ]; then
 fi
 
 echo "scale=10; $input" | bc
-

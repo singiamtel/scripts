@@ -8,13 +8,16 @@ pushd ~/config/nixos/
 $EDITOR
 
 if git diff --quiet HEAD -- '*.nix'; then
-    echo "No changes detected, exiting."
-    popd
-    exit 0
+	echo "No changes detected, exiting."
+	popd
+	exit 0
 fi
 
-alejandra . &>/dev/null \
-  || ( alejandra . ; echo "formatting failed!" && exit 1)
+alejandra . &>/dev/null ||
+	(
+		alejandra .
+		echo "formatting failed!" && exit 1
+	)
 
 git -P diff -U0 '*.nix'
 

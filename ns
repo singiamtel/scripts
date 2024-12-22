@@ -5,7 +5,7 @@ shift
 COMMAND="$*"
 
 if [[ -z $COMMAND ]]; then
-	nix-shell -p $PROGRAM
+	nix-shell -p "$PROGRAM"
 else
-	nix-shell -p $PROGRAM --run "$COMMAND"
+	nix-shell -p "$PROGRAM" --run "$COMMAND"
 fi

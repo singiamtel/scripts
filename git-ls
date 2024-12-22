@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # Modified date in git for every file in the current directory
 
-
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 for file in *; do
-  if [[ -f $file ]]; then
-    out=`git --no-pager log -1 --pretty="format:%cs" -- $file`
-	if [[ -z $out ]]; then
-		out="${RED}NOT IN GIT${NC}" # same amount of chars as a date, aligns great :D
+	if [[ -f $file ]]; then
+		out=$(git --no-pager log -1 --pretty="format:%cs" -- "$file")
+		if [[ -z $out ]]; then
+			out="${RED}NOT IN GIT${NC}" # same amount of chars as a date, aligns great :D
+		fi
+		echo -e -n "$out"
+		echo " $file"
 	fi
-	echo -e -n "$out"
-    echo " $file"
-  fi
 done

@@ -2,8 +2,8 @@
 
 # Check if some file names are provided as an argument
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <files>"
-    exit 1
+	echo "Usage: $0 <files>"
+	exit 1
 fi
 
 # The files to process
@@ -11,13 +11,13 @@ file="$*"
 
 # Check if the file exists
 for file in "$@"; do
-    if [ -f "$file" ]; then
-        # Remove all EXIF data without keeping the original file
-        exiftool -all= -overwrite_original "$file"
-        echo "EXIF data removed from $file."
+	if [ -f "$file" ]; then
+		# Remove all EXIF data without keeping the original file
+		exiftool -all= -overwrite_original "$file"
+		echo "EXIF data removed from $file."
 
-    else
-        echo "Error: File $file does not exist."
-        exit 2
-    fi
+	else
+		echo "Error: File $file does not exist."
+		exit 2
+	fi
 done

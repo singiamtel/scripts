@@ -2,26 +2,26 @@
 
 # Check if the user provided a time argument
 if [ -z "$1" ]; then
-    echo "Usage: $0 <time-argument>"
-    echo "Example: $0 '1 day ago'"
-    exit 1
+	echo "Usage: $0 <time-argument>"
+	echo "Example: $0 '1 day ago'"
+	exit 1
 fi
 
 # Function to get the default branch of the upstream remote
 get_default_branch() {
-    git remote show upstream | awk '/HEAD branch/ {print $NF}'
+	git remote show upstream | awk '/HEAD branch/ {print $NF}'
 }
 
 # Find all git repositories at depth 1 excluding the 'sw/' directory and check for commits on the default upstream branch since the provided time argument
 for repo in $(find . -maxdepth 2 -mindepth 2 -type d -name ".git" -not -path "./sw/*"); do
-    repo_dir=$(dirname "$repo")
-    echo "Repository: $repo_dir"
-    cd "$repo_dir"
-    # Fetch the latest data from the upstream remote
-    git fetch upstream
-    # Get the default branch of the upstream remote
-    default_branch=$(get_default_branch)
-    # Check for commits on the default upstream branch since the provided time argument
-    git --no-pager log upstream/$default_branch --since="$1"
-    cd - > /dev/null
+	repo_dir=$(dirname "$repo")
+	echo "Repository: $repo_dir"
+	cd "$repo_dir" || exit
+	# Fetch the latest data from the upstream remote
+	git fetch upstream
+	# Get the default branch of the upstream remote
+	default_branch=$(get_default_branch)
+	# Check for commits on the default upstream branch since the provided time argument
+	git --no-pager log upstream/"$default_branch" --since="$1"
+	cd - >/dev/null || exit
 done

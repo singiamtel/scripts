@@ -3,7 +3,6 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-from collections import deque
 import json
 import sys
 import argparse
@@ -14,6 +13,11 @@ def get_domain(url):
     parsed = urlparse(url)
     return parsed.scheme, parsed.netloc
 
+def normalize_url(url):
+    """Normalize URL by removing fragment identifier."""
+    parsed = urlparse(url)
+    return urljoin(url, parsed.path + ('?' + parsed.query if parsed.query else ''))
+
 def is_same_domain(url, base_domain):
     """Checks whether 'url' is in the same domain as 'base_domain'."""
     scheme, netloc = get_domain(url)
@@ -23,41 +27,41 @@ def process_url(url_info):
     """Process a single URL and return its data."""
     url, base_domain, depth = url_info
     result = {"url": url, "links": []}
-    
+
     try:
         response = requests.get(url, timeout=10)
         status_code = response.status_code
-        
+
         if status_code == 404:
             print(f"Found 404: {url}", file=sys.stderr)
             return url, {"status_code": 404, "size": 0, "links": []}
-            
+
         page_content = response.content
         size_in_bytes = len(page_content)
         result.update({"status_code": status_code, "size": size_in_bytes})
-        
-        # Only proceed if it's HTML and within depth limit
+
+        # Only proceed if it's HTML
         content_type = response.headers.get("Content-Type", "")
-        if "text/html" in content_type.lower() and depth < 1:
+        if "text/html" in content_type.lower():
             soup = BeautifulSoup(page_content, "html.parser")
             for link_tag in soup.find_all("a", href=True):
                 raw_link = link_tag.get("href")
                 next_link = urljoin(url, raw_link)
-                
-                # For internal links
-                if is_same_domain(next_link, base_domain):
-                    if depth + 1 <= 1:
-                        result["links"].append((next_link, depth + 1))
-                # For external links
-                elif depth < 1:
-                    result["links"].append((next_link, 1))
-                    
+                normalized_link = normalize_url(next_link)
+
+                # For internal links - continue crawling with no depth limit
+                if is_same_domain(normalized_link, base_domain):
+                    result["links"].append((normalized_link, depth))  # Keep same depth for internal links
+                # For external links - only check them once (depth 1)
+                elif depth == 0:  # Only add external links from internal pages
+                    result["links"].append((normalized_link, 1))  # External links always get depth 1
+
             print(f"Found {len(result['links'])} new links from {url}", file=sys.stderr)
-            
+
     except requests.RequestException as e:
         print(f"Error fetching {url}: {e}", file=sys.stderr)
         return url, {"status_code": "error", "size": 0, "links": []}
-        
+
     return url, result
 
 def crawl_site(start_url, max_workers=10):
@@ -69,8 +73,9 @@ def crawl_site(start_url, max_workers=10):
     print(f"Base domain: {base_domain[0]}://{base_domain[1]}", file=sys.stderr)
 
     # Track URLs to process and those we've seen
-    to_process = [(start_url, base_domain, 0)]
-    seen_urls = {start_url}
+    normalized_start = normalize_url(start_url)
+    to_process = [(normalized_start, base_domain, 0)]
+    seen_urls = {normalized_start}
     results = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -80,21 +85,21 @@ def crawl_site(start_url, max_workers=10):
                 executor.submit(process_url, url_info): url_info[0]
                 for url_info in to_process
             }
-            
+
             to_process = []
-            
+
             for future in as_completed(future_to_url):
                 url = future_to_url[future]
                 try:
                     url, data = future.result()
                     results[url] = data
-                    
+
                     # Add new links to process
                     for new_url, new_depth in data.get("links", []):
                         if new_url not in seen_urls:
                             seen_urls.add(new_url)
                             to_process.append((new_url, base_domain, new_depth))
-                            
+
                 except Exception as e:
                     print(f"Error processing {url}: {e}", file=sys.stderr)
                     results[url] = {"status_code": "error", "size": 0}

@@ -114,7 +114,7 @@ def crawl_site(start_url, max_workers=10):
     logger = logging.getLogger('crawler')
     logger.debug(f"Starting crawl from {start_url}")
     if not start_url.startswith(('http://', 'https://')):
-        start_url = 'https://' + start_url
+        start_url = 'http://' + start_url
 
     base_domain = get_domain(start_url)
     logger.debug(f"Base domain: {base_domain[0]}://{base_domain[1]}")

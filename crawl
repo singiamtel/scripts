@@ -8,33 +8,38 @@ import sys
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+
 def get_domain(url):
     """Extracts the (scheme, netloc) part of a URL to identify its domain."""
     parsed = urlparse(url)
     return parsed.scheme, parsed.netloc
+
 
 def normalize_url(url):
     """Normalize URL by removing fragment identifier."""
     parsed = urlparse(url)
     return urljoin(url, parsed.path + ('?' + parsed.query if parsed.query else ''))
 
+
 def is_same_domain(url, base_domain):
     """Checks whether 'url' is in the same domain as 'base_domain'."""
     scheme, netloc = get_domain(url)
     return (scheme, netloc) == base_domain
 
+
 def process_url(url_info):
     """Process a single URL and return its data."""
-    url, base_domain, depth = url_info
-    result = {"url": url, "links": []}
+    url, base_domain, depth, referrer = url_info
+    result = {"url": url, "links": [], "referrer": referrer}
 
     try:
         response = requests.get(url, timeout=10)
         status_code = response.status_code
 
-        if status_code == 404:
-            print(f"Found 404: {url}", file=sys.stderr)
-            return url, {"status_code": 404, "size": 0, "links": []}
+        if 400 <= status_code < 600:
+            print(
+                f"Found error status code {status_code}: {url}", file=sys.stderr)
+            return url, {"status_code": status_code, "size": 0, "links": [], "referrer": None}
 
         page_content = response.content
         size_in_bytes = len(page_content)
@@ -51,18 +56,22 @@ def process_url(url_info):
 
                 # For internal links - continue crawling with no depth limit
                 if is_same_domain(normalized_link, base_domain):
-                    result["links"].append((normalized_link, depth))  # Keep same depth for internal links
+                    # Keep same depth for internal links
+                    result["links"].append((normalized_link, depth, url))
                 # For external links - only check them once (depth 1)
                 elif depth == 0:  # Only add external links from internal pages
-                    result["links"].append((normalized_link, 1))  # External links always get depth 1
+                    # External links always get depth 1
+                    result["links"].append((normalized_link, 1, url))
 
-            print(f"Found {len(result['links'])} new links from {url}", file=sys.stderr)
+            print(
+                f"Found {len(result['links'])} new links from {url}", file=sys.stderr)
 
     except requests.RequestException as e:
         print(f"Error fetching {url}: {e}", file=sys.stderr)
-        return url, {"status_code": "error", "size": 0, "links": []}
+        return url, {"status_code": "error", "size": 0, "links": [], "referrer": None}
 
     return url, result
+
 
 def crawl_site(start_url, max_workers=10):
     print(f"Starting crawl from {start_url}", file=sys.stderr)
@@ -74,7 +83,8 @@ def crawl_site(start_url, max_workers=10):
 
     # Track URLs to process and those we've seen
     normalized_start = normalize_url(start_url)
-    to_process = [(normalized_start, base_domain, 0)]
+    # None referrer for start URL
+    to_process = [(normalized_start, base_domain, 0, None)]
     seen_urls = {normalized_start}
     results = {}
 
@@ -95,42 +105,54 @@ def crawl_site(start_url, max_workers=10):
                     results[url] = data
 
                     # Add new links to process
-                    for new_url, new_depth in data.get("links", []):
+                    for new_url, new_depth, referrer in data.get("links", []):
                         if new_url not in seen_urls:
                             seen_urls.add(new_url)
-                            to_process.append((new_url, base_domain, new_depth))
+                            to_process.append(
+                                (new_url, base_domain, new_depth, referrer))
 
                 except Exception as e:
                     print(f"Error processing {url}: {e}", file=sys.stderr)
-                    results[url] = {"status_code": "error", "size": 0}
+                    results[url] = {"status_code": "error",
+                                    "size": 0, "referrer": None}
 
     print(f"Crawl complete. Visited {len(results)} URLs", file=sys.stderr)
     return results
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Crawl a website and check for broken links and size limits')
+    parser = argparse.ArgumentParser(
+        description='Crawl a website and check for broken links and size limits')
     parser.add_argument('url', help='The URL to start crawling from')
-    parser.add_argument('--max-size', type=int, help='Maximum allowed size in bytes for any page', default=None)
-    parser.add_argument('--workers', type=int, help='Number of parallel workers', default=10)
+    parser.add_argument('--max-size', type=int,
+                        help='Maximum allowed size in bytes for any page', default=None)
+    parser.add_argument('--workers', type=int,
+                        help='Number of parallel workers', default=10)
     args = parser.parse_args()
 
     report = crawl_site(args.url, max_workers=args.workers)
 
     has_errors = False
     size_exceeded = False
+    # Sort URLs by size before output
+    sorted_items = sorted(report.items(), key=lambda x: x[1]["size"])
     # Output in JSONL format
-    for url, info in report.items():
+    for url, info in sorted_items:
         result = {
             "url": url,
             "status_code": info["status_code"],
-            "size": info["size"]
+            "size": info["size"],
+            "referrer": info.get("referrer")
         }
         print(json.dumps(result))
-        if info["status_code"] == 404:
+        if isinstance(info["status_code"], int) and 400 <= info["status_code"] < 600:
+            print(
+                f"Error: {url} returned status code {info['status_code']}", file=sys.stderr)
             has_errors = True
         if args.max_size and info["size"] > args.max_size:
-            print(f"Error: {url} exceeds maximum size of {args.max_size} bytes (actual size: {info['size']} bytes)", file=sys.stderr)
+            print(
+                f"Error: {url} exceeds maximum size of {args.max_size} bytes (actual size: {info['size']} bytes)", file=sys.stderr)
             size_exceeded = True
-    
+
     if has_errors or size_exceeded:
         sys.exit(1)

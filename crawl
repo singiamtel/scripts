@@ -5,8 +5,41 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import json
 import sys
+import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def setup_logging(debug=False):
+    """Configure logging with two handlers: one for stdout (INFO) and one for stderr (ERROR and DEBUG)"""
+    # Create our own logger
+    logger = logging.getLogger('crawler')
+    logger.handlers = []  # Clear any existing handlers
+    logger.propagate = False  # Don't propagate to root logger
+
+    # Set base level based on debug flag
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
+
+    # Create formatter
+    formatter = logging.Formatter('%(message)s')
+
+    # Create stdout handler for INFO level (JSONL output)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(logging.INFO)
+    stdout_handler.setFormatter(formatter)
+    stdout_handler.addFilter(lambda record: record.levelno == logging.INFO)
+
+    # Create stderr handler for ERROR and DEBUG
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.DEBUG)
+    stderr_handler.setFormatter(formatter)
+    stderr_handler.addFilter(lambda record: record.levelno != logging.INFO)
+
+    # Add handlers to our logger
+    logger.addHandler(stdout_handler)
+    logger.addHandler(stderr_handler)
+
+    return logger
 
 
 def get_domain(url):
@@ -31,14 +64,19 @@ def process_url(url_info):
     """Process a single URL and return its data."""
     url, base_domain, depth, referrer = url_info
     result = {"url": url, "links": [], "referrer": referrer}
+    logger = logging.getLogger('crawler')
 
     try:
-        response = requests.get(url, timeout=10)
+        headers = {
+            'User-Agent': 'curl/8.7.1',
+            'Accept': '*/*'
+        }
+        response = requests.get(
+            url, timeout=10, allow_redirects=True, headers=headers)
         status_code = response.status_code
 
         if 400 <= status_code < 600:
-            print(
-                f"Found error status code {status_code}: {url}", file=sys.stderr)
+            logger.error(f"Found error status code {status_code}: {url}")
             return url, {"status_code": status_code, "size": 0, "links": [], "referrer": None}
 
         page_content = response.content
@@ -63,23 +101,23 @@ def process_url(url_info):
                     # External links always get depth 1
                     result["links"].append((normalized_link, 1, url))
 
-            print(
-                f"Found {len(result['links'])} new links from {url}", file=sys.stderr)
+            logger.debug(f"Found {len(result['links'])} new links from {url}")
 
     except requests.RequestException as e:
-        print(f"Error fetching {url}: {e}", file=sys.stderr)
+        logger.error(f"Error fetching {url}: {e}")
         return url, {"status_code": "error", "size": 0, "links": [], "referrer": None}
 
     return url, result
 
 
 def crawl_site(start_url, max_workers=10):
-    print(f"Starting crawl from {start_url}", file=sys.stderr)
+    logger = logging.getLogger('crawler')
+    logger.debug(f"Starting crawl from {start_url}")
     if not start_url.startswith(('http://', 'https://')):
-        start_url = 'http://' + start_url
+        start_url = 'https://' + start_url
 
     base_domain = get_domain(start_url)
-    print(f"Base domain: {base_domain[0]}://{base_domain[1]}", file=sys.stderr)
+    logger.debug(f"Base domain: {base_domain[0]}://{base_domain[1]}")
 
     # Track URLs to process and those we've seen
     normalized_start = normalize_url(start_url)
@@ -112,11 +150,11 @@ def crawl_site(start_url, max_workers=10):
                                 (new_url, base_domain, new_depth, referrer))
 
                 except Exception as e:
-                    print(f"Error processing {url}: {e}", file=sys.stderr)
+                    logger.error(f"Error processing {url}: {e}")
                     results[url] = {"status_code": "error",
                                     "size": 0, "referrer": None}
 
-    print(f"Crawl complete. Visited {len(results)} URLs", file=sys.stderr)
+    logger.debug(f"Crawl complete. Visited {len(results)} URLs")
     return results
 
 
@@ -128,12 +166,18 @@ if __name__ == "__main__":
                         help='Maximum allowed size in bytes for any page', default=None)
     parser.add_argument('--workers', type=int,
                         help='Number of parallel workers', default=10)
+    parser.add_argument('--verbose', action='store_true',
+                        help='Enable verbose logging')
     args = parser.parse_args()
+
+    # Setup logging based on debug flag
+    logger = setup_logging(args.verbose)
 
     report = crawl_site(args.url, max_workers=args.workers)
 
     has_errors = False
     size_exceeded = False
+    final_errors = []
     # Sort URLs by size before output
     sorted_items = sorted(report.items(), key=lambda x: x[1]["size"])
     # Output in JSONL format
@@ -144,15 +188,20 @@ if __name__ == "__main__":
             "size": info["size"],
             "referrer": info.get("referrer")
         }
-        print(json.dumps(result))
+        logger.info(json.dumps(result))
         if isinstance(info["status_code"], int) and 400 <= info["status_code"] < 600:
-            print(
-                f"Error: {url} returned status code {info['status_code']}", file=sys.stderr)
+            final_errors.append(
+                f"Error: {url} returned status code {info['status_code']}")
             has_errors = True
         if args.max_size and info["size"] > args.max_size:
-            print(
-                f"Error: {url} exceeds maximum size of {args.max_size} bytes (actual size: {info['size']} bytes)", file=sys.stderr)
+            final_errors.append(
+                f"Error: {url} exceeds maximum size of {args.max_size} bytes (actual size: {info['size']} bytes)")
             size_exceeded = True
+
+    # Print all collected errors at the end
+    if final_errors:
+        for error in final_errors:
+            logger.error(error)
 
     if has_errors or size_exceeded:
         sys.exit(1)

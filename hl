@@ -2,6 +2,7 @@
 
 if [ $# -ne 2 ]; then
 	echo "Usage: hl <color> <pattern>"
+	echo "Available colors: black, red, green, yellow, blue, magenta, cyan"
 	exit 1
 fi
 
@@ -20,4 +21,4 @@ function highlight() {
 	sed -u s"/$2/$fg_c$2$c_rs/g"
 }
 
-highlight $@
+highlight "$@"

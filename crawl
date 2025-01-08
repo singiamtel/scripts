@@ -230,5 +230,4 @@ if __name__ == "__main__":
         for error in final_errors:
             logger.error(error)
 
-    if has_errors or size_exceeded:
-        sys.exit(1)
+    sys.exit(has_errors or size_exceeded)

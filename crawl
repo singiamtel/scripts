@@ -122,11 +122,11 @@ def crawl_site(start_url, max_workers=10):
     base_domain = get_domain(start_url)
     logger.debug(f"Base domain: {base_domain[0]}://{base_domain[1]}")
 
-    # Track URLs to process and those we've seen
+    # Track URLs to process and those we've seen, along with their original referrers
     normalized_start = normalize_url(start_url)
     # None referrer for start URL
     to_process = [(normalized_start, base_domain, 0, None)]
-    seen_urls = {normalized_start}
+    seen_urls = {normalized_start: None}  # Track referrers in seen_urls
     results = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -143,19 +143,22 @@ def crawl_site(start_url, max_workers=10):
                 url = future_to_url[future]
                 try:
                     url, data = future.result()
+                    # Set the referrer from our tracking, not from the URL
+                    data["referrer"] = seen_urls[url]
                     results[url] = data
 
                     # Add new links to process
-                    for new_url, new_depth, referrer in data.get("links", []):
+                    for new_url, new_depth, _ in data.get("links", []):
                         if new_url not in seen_urls:
-                            seen_urls.add(new_url)
+                            # Store the referrer when we first see the URL
+                            seen_urls[new_url] = url
                             to_process.append(
-                                (new_url, base_domain, new_depth, referrer))
+                                (new_url, base_domain, new_depth, url))
 
                 except Exception as e:
                     logger.error(f"Error processing {url}: {e}")
                     results[url] = {"status_code": "error",
-                                    "size": 0, "referrer": None}
+                                    "size": 0, "referrer": seen_urls.get(url)}
 
     logger.debug(f"Crawl complete. Visited {len(results)} URLs")
     return results

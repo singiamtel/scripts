@@ -55,9 +55,16 @@ def normalize_url(url):
 
 
 def is_same_domain(url, base_domain):
-    """Checks whether 'url' is in the same domain as 'base_domain'."""
+    """Checks whether 'url' is in the same domain or a subdomain of 'base_domain'."""
     scheme, netloc = get_domain(url)
-    return (scheme, netloc) == base_domain
+    base_scheme, base_netloc = base_domain
+
+    # Extract the main domain from both URLs by taking the last two parts
+    # e.g., 'sub.example.com' -> 'example.com'
+    main_domain = '.'.join(netloc.split('.')[-2:])
+    base_main_domain = '.'.join(base_netloc.split('.')[-2:])
+
+    return scheme == base_scheme and main_domain == base_main_domain
 
 
 def process_url(url_info):
@@ -82,6 +89,13 @@ def process_url(url_info):
             logger.info(f"Found status code {status_code}: {url}")
             return url, {"status_code": 0, "size": 0, "links": [], "referrer": None}
 
+        # Check if the final URL after redirects is still in our domain
+        final_url = response.url
+        if not is_same_domain(final_url, base_domain):
+            logger.debug(
+                f"URL {url} redirected outside our domain to {final_url}")
+            return url, {"status_code": status_code, "size": 0, "links": [], "referrer": referrer}
+
         page_content = response.content
         size_in_bytes = len(page_content)
         result.update({"status_code": status_code, "size": size_in_bytes})
@@ -92,7 +106,8 @@ def process_url(url_info):
             soup = BeautifulSoup(page_content, "html.parser")
             for link_tag in soup.find_all("a", href=True):
                 raw_link = link_tag.get("href")
-                next_link = urljoin(url, raw_link)
+                # Use final_url instead of original url
+                next_link = urljoin(final_url, raw_link)
                 normalized_link = normalize_url(next_link)
 
                 # For internal links - continue crawling with no depth limit

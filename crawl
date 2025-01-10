@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# This script crawls a website and checks for broken links and size limits.
+# The order of the links or the referrer is not guaranteed to be stable.
+
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -7,7 +10,6 @@ import json
 import sys
 import logging
 import argparse
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -69,7 +71,7 @@ def is_same_domain(url, base_domain):
 
 def process_url(url_info):
     """Process a single URL and return its data."""
-    url, base_domain, depth, referrer = url_info
+    url, base_domain, should_recurse, referrer = url_info
     result = {"url": url, "links": [], "referrer": referrer}
     logger = logging.getLogger('crawler')
 
@@ -112,12 +114,12 @@ def process_url(url_info):
 
                 # For internal links - continue crawling with no depth limit
                 if is_same_domain(normalized_link, base_domain):
-                    # Keep same depth for internal links
-                    result["links"].append((normalized_link, depth, url))
-                # For external links - only check them once (depth 1)
-                elif depth == 0:  # Only add external links from internal pages
-                    # External links always get depth 1
-                    result["links"].append((normalized_link, 1, url))
+                    # Keep recursing for internal links
+                    result["links"].append((normalized_link, True, url))
+                # For external links - only check them once (no recursion)
+                elif should_recurse:  # Only add external links from internal pages
+                    # External links never recurse
+                    result["links"].append((normalized_link, False, url))
 
             logger.debug(f"Found {len(result['links'])} new links from {url}")
 
@@ -139,8 +141,8 @@ def crawl_site(start_url, max_workers=10):
 
     # Track URLs to process and those we've seen, along with their original referrers
     normalized_start = normalize_url(start_url)
-    # None referrer for start URL
-    to_process = [(normalized_start, base_domain, 0, None)]
+    # None referrer for start URL, True for should_recurse since it's the starting point
+    to_process = [(normalized_start, base_domain, True, None)]
     seen_urls = {normalized_start: None}  # Track referrers in seen_urls
     results = {}
 
@@ -163,12 +165,12 @@ def crawl_site(start_url, max_workers=10):
                     results[url] = data
 
                     # Add new links to process
-                    for new_url, new_depth, _ in data.get("links", []):
+                    for new_url, new_should_recurse, _ in data.get("links", []):
                         if new_url not in seen_urls:
                             # Store the referrer when we first see the URL
                             seen_urls[new_url] = url
                             to_process.append(
-                                (new_url, base_domain, new_depth, url))
+                                (new_url, base_domain, new_should_recurse, url))
 
                 except Exception as e:
                     logger.error(f"Error processing {url}: {e}")

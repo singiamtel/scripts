@@ -71,7 +71,7 @@ def is_same_domain(url, base_domain):
 
 def process_url(url_info):
     """Process a single URL and return its data."""
-    url, base_domain, should_recurse, referrer = url_info
+    url, base_domain, should_recurse, referrer, depth = url_info
     result = {"url": url, "links": [], "referrer": referrer}
     logger = logging.getLogger('crawler')
 
@@ -114,12 +114,14 @@ def process_url(url_info):
 
                 # For internal links - continue crawling with no depth limit
                 if is_same_domain(normalized_link, base_domain):
-                    # Keep recursing for internal links
-                    result["links"].append((normalized_link, True, url))
+                    # Keep recursing for internal links if within depth limit
+                    result["links"].append(
+                        (normalized_link, True, url, depth + 1))
                 # For external links - only check them once (no recursion)
                 elif should_recurse:  # Only add external links from internal pages
                     # External links never recurse
-                    result["links"].append((normalized_link, False, url))
+                    result["links"].append(
+                        (normalized_link, False, url, depth + 1))
 
             logger.debug(f"Found {len(result['links'])} new links from {url}")
 
@@ -130,7 +132,7 @@ def process_url(url_info):
     return url, result
 
 
-def crawl_site(start_url, max_workers=10):
+def crawl_site(start_url, max_workers=10, max_depth=None):
     logger = logging.getLogger('crawler')
     logger.debug(f"Starting crawl from {start_url}")
     if not start_url.startswith(('http://', 'https://')):
@@ -141,8 +143,8 @@ def crawl_site(start_url, max_workers=10):
 
     # Track URLs to process and those we've seen, along with their original referrers
     normalized_start = normalize_url(start_url)
-    # None referrer for start URL, True for should_recurse since it's the starting point
-    to_process = [(normalized_start, base_domain, True, None)]
+    # None referrer for start URL, True for should_recurse since it's the starting point, depth 0 for start
+    to_process = [(normalized_start, base_domain, True, None, 0)]
     seen_urls = {normalized_start: None}  # Track referrers in seen_urls
     results = {}
 
@@ -164,13 +166,13 @@ def crawl_site(start_url, max_workers=10):
                     data["referrer"] = seen_urls[url]
                     results[url] = data
 
-                    # Add new links to process
-                    for new_url, new_should_recurse, _ in data.get("links", []):
-                        if new_url not in seen_urls:
+                    # Add new links to process if within depth limit
+                    for new_url, new_should_recurse, _, new_depth in data.get("links", []):
+                        if new_url not in seen_urls and (max_depth is None or new_depth <= max_depth):
                             # Store the referrer when we first see the URL
                             seen_urls[new_url] = url
                             to_process.append(
-                                (new_url, base_domain, new_should_recurse, url))
+                                (new_url, base_domain, new_should_recurse, url, new_depth))
 
                 except Exception as e:
                     logger.error(f"Error processing {url}: {e}")
@@ -189,6 +191,8 @@ if __name__ == "__main__":
                         help='Maximum allowed size in bytes for any page', default=None)
     parser.add_argument('--workers', type=int,
                         help='Number of parallel workers', default=10)
+    parser.add_argument('--max-depth', type=int,
+                        help='Maximum depth to crawl (default: no limit)', default=None)
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
     args = parser.parse_args()
@@ -202,7 +206,8 @@ if __name__ == "__main__":
     # Setup logging with the output file
     logger = setup_logging(args.verbose, output_file)
 
-    report = crawl_site(args.url, max_workers=args.workers)
+    report = crawl_site(args.url, max_workers=args.workers,
+                        max_depth=args.max_depth)
 
     has_errors = False
     size_exceeded = False

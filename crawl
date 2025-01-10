@@ -91,15 +91,16 @@ def process_url(url_info):
             logger.info(f"Found status code {status_code}: {url}")
             return url, {"status_code": 0, "size": 0, "links": [], "referrer": None}
 
+        page_content = response.content
+        size_in_bytes = len(page_content)
+
         # Check if the final URL after redirects is still in our domain
         final_url = response.url
         if not is_same_domain(final_url, base_domain):
             logger.debug(
                 f"URL {url} redirected outside our domain to {final_url}")
-            return url, {"status_code": status_code, "size": 0, "links": [], "referrer": referrer}
+            return url, {"status_code": status_code, "size": size_in_bytes, "links": [], "referrer": referrer}
 
-        page_content = response.content
-        size_in_bytes = len(page_content)
         result.update({"status_code": status_code, "size": size_in_bytes})
 
         # Only proceed if it's HTML
@@ -227,7 +228,7 @@ if __name__ == "__main__":
             final_errors.append(
                 f"Error: {url} returned status code {info['status_code']}")
             has_errors = True
-        if args.max_size and info["size"] > args.max_size:
+        if args.max_size and info["size"] > args.max_size and is_same_domain(url, args.url):
             final_errors.append(
                 f"Error: {url} exceeds maximum size of {args.max_size} bytes (actual size: {info['size']} bytes)")
             size_exceeded = True

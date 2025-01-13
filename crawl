@@ -11,6 +11,7 @@ import sys
 import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 
 def setup_logging(debug=False, output_file=None):
@@ -237,5 +238,9 @@ if __name__ == "__main__":
     if final_errors:
         for error in final_errors:
             logger.error(error)
+
+    # Print the path to results file
+    abs_output_path = os.path.abspath(output_file)
+    print(f"\nResults written to: {abs_output_path}")
 
     sys.exit(has_errors or size_exceeded)

@@ -4,10 +4,7 @@ max_time=150 # seconds
 
 cleanup() {
 	# Kill any child processes
-	echo "Cleaning up child processes..."
 	pkill -P $$
-
-	# Exit the script
 	exit 0
 }
 

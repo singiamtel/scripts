@@ -1,4 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.7"
+# dependencies = [
+#     "requests",
+#     "beautifulsoup4",
+# ]
+# ///
 
 # This script crawls a website and checks for broken links and size limits.
 # The order of the links or the referrer is not guaranteed to be stable.

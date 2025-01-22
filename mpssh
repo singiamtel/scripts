@@ -146,9 +146,10 @@ async def main() -> int:
         help='SSH connection timeout in seconds'
     )
     parser.add_argument(
-        'json_file',
+        '--json_file',
         type=str,
-        help='The JSON file containing the list of hosts'
+        help='The JSON file containing the list of hosts',
+        default=str(Path.home() / '.config' /'ssh_hosts.json'),
     )
     parser.add_argument('hostgroup', type=str,
                         help='The hostgroup to run the command on')

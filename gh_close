@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Check if gh CLI is installed
+if ! command -v gh &> /dev/null; then
+    echo "GitHub CLI (gh) is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if fzf is installed
+if ! command -v fzf &> /dev/null; then
+    echo "fzf is not installed. Please install it first."
+    exit 1
+fi
+
+# List all issues and pipe to fzf for selection
+selected_issue=$(gh issue list --limit 100 | fzf --header="Select an issue to close (use arrow keys, press enter to select)")
+
+if [ -z "$selected_issue" ]; then
+    echo "No issue selected. Exiting."
+    exit 0
+fi
+
+# Extract the issue number from the selected line (first column)
+issue_number=$(echo "$selected_issue" | awk '{print $1}')
+
+# Close the selected issue
+echo "Closing issue #$issue_number..."
+gh issue close "$issue_number" 

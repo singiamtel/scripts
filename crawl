@@ -78,11 +78,26 @@ def is_same_domain(url, base_domain):
     return scheme == base_scheme and main_domain == base_main_domain
 
 
+def is_valid_url(url):
+    """Check if the URL is valid and not a JavaScript pseudo-URL."""
+    if url.startswith(('javascript:', 'void(', '#', 'tel:', 'mailto:')):
+        return False
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except Exception:
+        return False
+
+
 def process_url(url_info):
     """Process a single URL and return its data."""
     url, base_domain, should_recurse, referrer, depth = url_info
     result = {"url": url, "links": [], "referrer": referrer}
     logger = logging.getLogger('crawler')
+
+    if not is_valid_url(url):
+        logger.debug(f"Skipping invalid URL: {url}")
+        return url, {"status_code": "invalid", "size": 0, "links": [], "referrer": referrer}
 
     try:
         headers = {

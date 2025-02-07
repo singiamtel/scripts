@@ -24,7 +24,7 @@ folder_name=$(basename "$remote_folder")
 
 cd ./output
 
-tar -czvf ../"$folder_name"-$(date +%Y-%m-%d).tar.gz *
+tar -czvf ../"$folder_name"-"$(date +%Y-%m-%d)".tar.gz -- *
 
 cd ..
 rm -rf ./output

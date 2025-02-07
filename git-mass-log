@@ -13,6 +13,7 @@ get_default_branch() {
 }
 
 # Find all git repositories at depth 1 excluding the 'sw/' directory and check for commits on the default upstream branch since the provided time argument
+# shellcheck disable=SC2044
 for repo in $(find . -maxdepth 2 -mindepth 2 -type d -name ".git" -not -path "./sw/*"); do
 	repo_dir=$(dirname "$repo")
 	echo "Repository: $repo_dir"

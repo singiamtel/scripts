@@ -5,7 +5,7 @@
 git fetch
 remoteBranch=$(git symbolic-ref --short -q HEAD)
 
-if [ ! -z "$1" ]; then
+if [ -n "$1" ]; then
 	remoteBranch=$1
 fi
 echo "Showing diff between $remoteBranch origin/$remoteBranch"

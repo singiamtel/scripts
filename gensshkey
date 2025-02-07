@@ -23,6 +23,6 @@ KEY_NAME=id_rsa_$SERVER_NAME # Key name based on server name
 ssh-keygen -t rsa -b 4096 -N "" -f "$KEY_NAME"
 
 # Manually copy the SSH key to the server
-cat "$KEY_NAME".pub | ssh "$SSH_HOST" "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+ssh "$SSH_HOST" "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys" < "$KEY_NAME".pub
 
 echo "SSH key generated and manually copied to $SERVER_NAME"

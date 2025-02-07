@@ -13,26 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-      
-      - name: Run shellcheck
-        run: |
-          find . -type f -exec sh -c '
-            for file do
-              if head -n1 "$file" | grep -q "^#!.*bash" ; then
-                shellcheck "$file"
-              fi
-            done
-          ' sh {} +
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
 
   mypy:
     name: Mypy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:

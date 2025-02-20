@@ -163,7 +163,7 @@ async def main() -> int:
     try:
         json_path = Path(args.json_file)
         if not json_path.exists():
-            raise FileNotFoundError(f"JSON file not found: {args.json_file}")
+            raise FileNotFoundError(f"JSON config file not found: {args.json_file}")
 
         with open(json_path, 'r') as file:
             data = json.load(file)

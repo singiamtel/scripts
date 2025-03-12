@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-max_time=150 # seconds
+max_time=200 # seconds
 
 cleanup() {
 	# Kill any child processes

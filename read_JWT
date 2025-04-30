@@ -11,6 +11,7 @@ import jwt
 import json
 import sys
 
+
 def main():
     # Read the token from stdin
     token = sys.stdin.read().strip()
@@ -24,11 +25,14 @@ def main():
         if token.startswith('"') and token.endswith('"'):
             token = token[1:-1]
         # Decode the token without verifying the signature
-        decoded = jwt.decode(token, options={"verify_signature": False}) # works in PyJWT >= v2.0
+        decoded = jwt.decode(
+            token, options={"verify_signature": False}
+        )  # works in PyJWT >= v2.0
         print(json.dumps(decoded, indent=4))
     except Exception as e:
         print(f"Error decoding token: {e}")
         exit(1)
+
 
 if __name__ == "__main__":
     main()

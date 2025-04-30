@@ -15,9 +15,13 @@ if len(sys.argv) != 3:
 file_a_path = sys.argv[1]
 file_b_path = sys.argv[2]
 
-with open(file_a_path, 'r') as fileA, open(file_b_path, 'r') as fileB:
-    fileB_lines = {line.strip().lower() for line in fileB}  # Trim and lowercase lines in file B
-    
+with open(file_a_path, "r") as fileA, open(file_b_path, "r") as fileB:
+    fileB_lines = {
+        line.strip().lower() for line in fileB
+    }  # Trim and lowercase lines in file B
+
     for line in fileA:
-        if line.strip().lower() not in fileB_lines:  # Trim and lowercase lines from file A
+        if (
+            line.strip().lower() not in fileB_lines
+        ):  # Trim and lowercase lines from file A
             print(line.strip())  # Trim and print the line

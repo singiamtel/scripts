@@ -6,7 +6,6 @@
 # ]
 # ///
 
-import os
 import json
 import argparse
 import io
@@ -64,17 +63,17 @@ def download_sheet_as_csv(service, spreadsheet_id, output_path, service_account_
 
     except HttpError as error:
         if error.resp.status == 404:
-            print(f"\nERROR: File not found or not accessible (404).")
+            print("\nERROR: File not found or not accessible (404).")
             print(
-                f"\nWARNING: Make sure the spreadsheet is shared with the service account email:"
+                "\nWARNING: Make sure the spreadsheet is shared with the service account email:"
             )
             print(f"         {service_account_email}")
-            print(f"\nTo share the document:")
-            print(f"1. Open the Google Sheet in your browser")
-            print(f"2. Click the 'Share' button in the top-right corner")
-            print(f"3. Enter the service account email address above")
-            print(f"4. Make sure to give at least 'Viewer' access")
-            print(f"5. Click 'Send' (no need to send the notification email)")
+            print("\nTo share the document:")
+            print("1. Open the Google Sheet in your browser")
+            print("2. Click the 'Share' button in the top-right corner")
+            print("3. Enter the service account email address above")
+            print("4. Make sure to give at least 'Viewer' access")
+            print("5. Click 'Send' (no need to send the notification email)")
         else:
             print(f"An error occurred: {error}")
 

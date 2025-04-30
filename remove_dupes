@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Remove duplicates without sorting
 cat | awk '!seen[$0]++'

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 FILENAME="$1"
 FILE_HOST_URL="https://catbox.moe/user/api.php"

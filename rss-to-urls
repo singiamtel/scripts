@@ -1,0 +1,58 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["feedparser"]
+# ///
+import feedparser
+import sys
+
+def rss_to_links(rss_url):
+    """
+    Parse an RSS feed and return a list of links to the entries.
+    
+    Args:
+        rss_url: URL of the RSS feed to parse
+        
+    Returns:
+        A list of links from the feed
+    """
+    try:
+        # Parse the feed
+        feed = feedparser.parse(rss_url)
+        
+        # Check if there was an error parsing the feed
+        if feed.bozo and hasattr(feed, 'bozo_exception'):
+            print(f"Error parsing feed: {feed.bozo_exception}", file=sys.stderr)
+            return []
+        
+        # Extract links from entries
+        links = []
+        for entry in feed.entries:
+            if hasattr(entry, 'link'):
+                links.append(entry.link)
+        
+        return links
+    
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        return []
+
+def main():
+    # Check if URL was provided as command line argument
+    if len(sys.argv) < 2:
+        print("Usage: python rss_to_links.py <rss_url>", file=sys.stderr)
+        sys.exit(1)
+    
+    rss_url = sys.argv[1]
+    links = rss_to_links(rss_url)
+    
+    if links:
+        # Print each link on a new line
+        for link in links:
+            print(link)
+    else:
+        print("No links found in the feed.", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

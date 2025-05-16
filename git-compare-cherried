@@ -14,7 +14,7 @@ HEAD=$2
 echo "Analyzing commits between $UPSTREAM and $HEAD..."
 
 # Get commits that are in HEAD but not in UPSTREAM (similar to git cherry)
-UNIQUE_COMMITS=$(git rev-list $UPSTREAM..$HEAD)
+UNIQUE_COMMITS=$(git rev-list "$UPSTREAM".."$HEAD")
 
 if [ -z "$UNIQUE_COMMITS" ]; then
   echo "No unique commits found in $HEAD that aren't in $UPSTREAM."
@@ -22,18 +22,18 @@ if [ -z "$UNIQUE_COMMITS" ]; then
 fi
 
 # Get all commit messages from upstream for comparison
-UPSTREAM_MSGS=$(git log --format="%s" $UPSTREAM)
+UPSTREAM_MSGS=$(git log --format="%s" "$UPSTREAM")
 
 echo "Commits in $HEAD that aren't in $UPSTREAM based on commit message:"
 echo "--------------------------------------------------------------"
 
 while IFS= read -r commit; do
   # Get the commit message for this commit
-  COMMIT_MSG=$(git log -n 1 --format="%s" $commit)
+  COMMIT_MSG=$(git log -n 1 --format="%s" "$commit")
   
   # Check if this commit message exists in upstream
   if ! echo "$UPSTREAM_MSGS" | grep -q "^$COMMIT_MSG$"; then
     # This commit message doesn't exist in upstream, so show it
-    git show --no-patch --format="%C(yellow)%h%C(reset) - %s %C(green)(%cr) %C(bold blue)<%an>%C(reset)" $commit
+    git show --no-patch --format="%C(yellow)%h%C(reset) - %s %C(green)(%cr) %C(bold blue)<%an>%C(reset)" "$commit"
   fi
 done <<< "$UNIQUE_COMMITS"

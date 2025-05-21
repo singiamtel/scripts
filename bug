@@ -1,0 +1,84 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = [
+#   "click",
+# ]
+# ///
+
+import subprocess
+import click
+
+def get_system_version() -> str:
+    sw_name = subprocess.run(["sw_vers", "--productName"], capture_output=True, text=True).stdout.strip()
+    sw_version = subprocess.run(["sw_vers", "--productVersion"], capture_output=True, text=True).stdout.strip()
+    xcode = subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True).stdout.strip().replace("\n", " ")
+    return f"{sw_name} {sw_version} {xcode}"
+
+def get_rust_version() -> str:
+    return subprocess.run(["rustc", "--version"], capture_output=True, text=True).stdout.strip()
+
+def get_go_version() -> str:
+    return subprocess.run(["go", "version"], capture_output=True, text=True).stdout.strip()
+
+def get_python3_version() -> str:
+    return subprocess.run(["python3", "--version"], capture_output=True, text=True).stdout.strip()
+
+def get_node_version() -> str:
+    return subprocess.run(["node", "--version"], capture_output=True, text=True).stdout.strip()
+
+def get_brew_version() -> str:
+    return subprocess.run(["brew", "--version"], capture_output=True, text=True).stdout.strip()
+
+def show_version(version_key: str):
+    try:
+        if version_key == 'system':
+            name = 'System'
+            cmd_result = get_system_version()
+        elif version_key == 'rust':
+            name = 'Rust'
+            cmd_result = get_rust_version()
+        elif version_key == 'go':
+            name = 'Go'
+            cmd_result = get_go_version()
+        elif version_key == 'python3':
+            name = 'Python3'
+            cmd_result = get_python3_version()
+        elif version_key == 'node':
+            name = 'Node.js'
+            cmd_result = get_node_version()
+        elif version_key == 'brew':
+            name = 'Homebrew'
+            cmd_result = get_brew_version()
+        else:
+            print(f"Unknown version key: {version_key}")
+            return
+        
+        print(cmd_result)
+    except FileNotFoundError:
+        print(f"{name} is not installed or not found in PATH")
+
+@click.command()
+@click.option('--all', is_flag=True, help="Show all versions.")
+@click.option('--system/--no-system', default=True, help="Show macOS and Xcode versions.")
+@click.option('--rust/--no-rust', default=False, help="Show Rust version.")
+@click.option('--go/--no-go', default=False, help="Show Go version.")
+@click.option('--python3/--no-python3', default=False, help="Show Python3 version.")
+@click.option('--node/--no-node', default=False, help="Show Node.js version.")
+@click.option('--brew/--no-brew', default=False, help="Show Homebrew version.")
+def cli(all, system, rust, go, python3, node, brew):
+    if all:
+        system = rust = go = python3 = node = brew = True
+    
+    for version_key, enabled in [
+        ('system', system),
+        ('rust', rust),
+        ('go', go),
+        ('python3', python3),
+        ('node', node),
+        ('brew', brew)
+    ]:
+        if enabled:
+            show_version(version_key)
+
+if __name__ == "__main__":
+    cli() 

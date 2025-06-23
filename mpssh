@@ -195,7 +195,7 @@ async def main() -> int:
             )
         else:
             logging.error(
-                f"Commands failed on hosts: {', '.join(failed_hosts)}",
+                f"Commands failed on {len(failed_hosts)} host{'' if len(failed_hosts) == 1 else 's'}: hosts: {', '.join(failed_hosts)}",
                 extra={"host": "all"},
             )
         return 1

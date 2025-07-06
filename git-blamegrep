@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+git grep -n ": any" | while read -r line; do
+    file=$(echo "$line" | cut -d: -f1)
+    line_num=$(echo "$line" | cut -d: -f2)
+    # HOME hack as to not find ~/.gitconfig
+    blame_date=$(HOME=/dev/null git blame -e -L"$line_num,$line_num" "$file" | awk '{print $3}')
+    echo "$blame_date $line"
+done | sort

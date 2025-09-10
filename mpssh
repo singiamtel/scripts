@@ -120,9 +120,42 @@ async def ssh_connect_and_run_command(
         )
 
 
+def get_hostgroups_help_text(json_file: str) -> str:
+    """Get available hostgroups for help text, with warning if config not found."""
+    try:
+        json_path = Path(json_file)
+        if not json_path.exists():
+            return f"\nWARNING: Config file not found at {json_file}"
+        
+        with open(json_path, "r") as file:
+            data = json.load(file)
+            hostgroups = list(data.keys())
+            if hostgroups:
+                return f"\nAvailable hostgroups: {', '.join(sorted(hostgroups))}"
+            else:
+                return f"\nWARNING: No hostgroups found in {json_file}"
+    except json.JSONDecodeError:
+        return f"\nWARNING: Invalid JSON in config file {json_file}"
+    except Exception:
+        return f"\nWARNING: Could not read config file {json_file}"
+
+
+class CustomArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # Show help with hostgroups when arguments are missing
+        self.print_help()
+        sys.stderr.write(f"\nerror: {message}\n")
+        sys.exit(2)
+
+
 async def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Run a command on multiple hosts via SSH."
+    # Set default config path
+    default_json_file = str(Path.home() / ".config" / "ssh_hosts.json")
+    
+    parser = CustomArgumentParser(
+        description="Run a command on multiple hosts via SSH.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=get_hostgroups_help_text(default_json_file)
     )
     parser.add_argument(
         "--raw", action="store_true", help="Print raw output without any formatting"
@@ -131,10 +164,10 @@ async def main() -> int:
         "--timeout", type=int, default=10, help="SSH connection timeout in seconds"
     )
     parser.add_argument(
-        "--json_file",
+        "--json-file",
         type=str,
         help="The JSON file containing the list of hosts",
-        default=str(Path.home() / ".config" / "ssh_hosts.json"),
+        default=default_json_file,
     )
     parser.add_argument(
         "hostgroup", type=str, help="The hostgroup to run the command on"
@@ -142,6 +175,17 @@ async def main() -> int:
     parser.add_argument(
         "command", nargs=argparse.REMAINDER, help="The command to run on each host"
     )
+    
+    # Handle custom json-file for help text
+    if "--json-file" in sys.argv:
+        try:
+            json_file_idx = sys.argv.index("--json-file") + 1
+            if json_file_idx < len(sys.argv) and not sys.argv[json_file_idx].startswith("-"):
+                custom_json_file = sys.argv[json_file_idx]
+                parser.epilog = get_hostgroups_help_text(custom_json_file)
+        except (IndexError, ValueError):
+            pass
+    
     args = parser.parse_args()
 
     setup_logging(args.raw)
@@ -149,15 +193,15 @@ async def main() -> int:
     try:
         json_path = Path(args.json_file)
         if not json_path.exists():
-            raise FileNotFoundError(f"JSON config file not found: {args.json_file}")
+            raise FileNotFoundError(f"Config file not found at {args.json_file}")
 
         with open(json_path, "r") as file:
             data = json.load(file)
     except json.JSONDecodeError as e:
-        logging.error(f"Invalid JSON file: {e}")
+        logging.error(f"Invalid JSON in config file {args.json_file}")
         return 1
     except Exception as e:
-        logging.error(f"Error reading JSON file: {e}")
+        logging.error(f"Could not read config file {args.json_file}")
         return 1
 
     hostgroup = data.get(args.hostgroup)

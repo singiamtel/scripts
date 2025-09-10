@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-max_time=200 # seconds
+default_max_time=200 # seconds
 
 cleanup() {
 	# Kill any child processes
@@ -8,13 +8,15 @@ cleanup() {
 	exit 0
 }
 
-cpu_num=$1
+cpu_num=$(nproc)
+
+max_time=$1
 
 if [ $# -ne 1 ]; then
-	cpu_num=$(nproc)
+    max_time=$default_max_time
 fi
 
-echo "Number of CPUs: $cpu_num, max time $max_time seconds"
+echo "Using $cpu_num CPUs for $max_time seconds"
 
 # Register the cleanup function to run on SIGINT and SIGTERM signals
 trap cleanup SIGINT SIGTERM
@@ -29,8 +31,8 @@ function loop() {
 # Start the timer in the background
 (
 	set -e
-	sleep $max_time
-	echo "Maximum time ($max_time seconds) reached. Cleaning up..."
+	sleep "$max_time"
+	echo "Time limit reached ($max_time seconds). Cleaning up..."
 	cleanup >/dev/null
 ) &
 

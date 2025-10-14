@@ -79,17 +79,20 @@ def escape_shell_command(command: str) -> str:
 
 
 async def ssh_connect_and_run_command(
-    host: str, command: str, thread_color: str, raw: bool = False, timeout: int = 30
+    host: str, command: str, thread_color: str, raw: bool = False, timeout: int = 30, stdin_data: Optional[bytes] = None
 ) -> SSHResult:
     try:
         escaped_command = escape_shell_command(command)
         ssh_command = f"ssh -o ConnectTimeout={timeout} {host} '{escaped_command}'"
 
         process = await asyncio.create_subprocess_shell(
-            ssh_command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            ssh_command, 
+            stdout=asyncio.subprocess.PIPE, 
+            stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.PIPE if stdin_data is not None else None
         )
 
-        stdout, stderr = (x.decode("utf-8") for x in await process.communicate())
+        stdout, stderr = (x.decode("utf-8") for x in await process.communicate(input=stdin_data))
 
         if stdout:
             for line in stdout.splitlines():
@@ -170,6 +173,9 @@ async def main() -> int:
         default=default_json_file,
     )
     parser.add_argument(
+        "--stdin", action="store_true", help="Read stdin and pass it to the remote command"
+    )
+    parser.add_argument(
         "hostgroup", type=str, help="The hostgroup to run the command on"
     )
     parser.add_argument(
@@ -209,6 +215,16 @@ async def main() -> int:
         logging.error(f"Hostgroup '{args.hostgroup}' not found in JSON file")
         return 1
 
+    stdin_data = None
+    if args.stdin:
+        stdin_data = sys.stdin.buffer.read()
+    else:
+        if not sys.stdin.isatty():
+            print('123')
+            sys.stdin.read()
+            print('456')
+
+
     thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]
     tasks = []
 
@@ -221,7 +237,7 @@ async def main() -> int:
         thread_color = thread_colors[i % len(thread_colors)]
         task = asyncio.create_task(
             ssh_connect_and_run_command(
-                host, " ".join(args.command), thread_color, args.raw, args.timeout
+                host, " ".join(args.command), thread_color, args.raw, args.timeout, stdin_data
             )
         )
         tasks.append(task)

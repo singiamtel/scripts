@@ -1,0 +1,33 @@
+#!/bin/sh
+# Originally from https://til.simonwillison.net/python/uv-tests
+
+set -eu  # (no pipefail in POSIX sh)
+
+usage() {
+  echo "Usage: uv-test [-p|--python PY_VER] [pytest args...]"
+  echo "  -p, --python  Set Python version (default: \$UV_PY or 3.14)"
+  echo "  -h, --help    Show this help"
+}
+
+PYVER="${UV_PY:-3.14}"
+
+# Parse only our flags; pass the rest to pytest
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -p|--python)
+      shift
+      [ $# -gt 0 ] || { echo "error: -p/--python requires a version" >&2; exit 2; }
+      PYVER="$1"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+
+command -v uv >/dev/null 2>&1 || { echo "error: 'uv' not found in PATH" >&2; exit 127; }
+if [ ! -f pyproject.toml ] && [ ! -f setup.py ]; then
+  echo "error: no project file found (need pyproject.toml or setup.py). Run from project root." >&2
+  exit 1
+fi
+
+exec uvx --python "$PYVER" --with pytest --isolated --with-editable  . -- pytest "$@"

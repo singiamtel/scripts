@@ -1,0 +1,155 @@
+#!/usr/bin/env -S uv run --script
+# vi: ft=python
+# /// script
+# requires-python = ">=3.7"
+# dependencies = [
+#     "click",
+# ]
+# ///
+
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import click
+
+
+def get_git_base_dir():
+    """Get the base git directory path."""
+    return Path.home() / "wsp" / "repos" / "git"
+
+
+def parse_git_url(url):
+    """Parse a Git URL to extract domain, owner, and repo."""
+    patterns = [
+        r"^https://([^/]+)/([^/]+)/([^/]+?)(?:\.git)?/?$",
+        r"^git@([^:]+):([^/]+)/([^/]+?)(?:\.git)?/?$",
+        r"^([^/]+)/([^/]+)$",
+    ]
+    
+    for pattern in patterns:
+        match = re.match(pattern, url)
+        if match:
+            groups = match.groups()
+            if len(groups) == 3:
+                domain, owner, repo = groups
+            else:
+                owner, repo = groups
+                domain = "github.com"
+            return domain, owner, repo
+    
+    raise ValueError(f"Could not parse Git URL format: {url}")
+
+
+def run_git_command(cmd, cwd=None, check=True):
+    """Run a git command and return the result."""
+    try:
+        result = subprocess.run(
+            cmd, 
+            cwd=cwd, 
+            check=check, 
+            text=True
+        )
+        return result
+    except subprocess.CalledProcessError as e:
+        if check:
+            click.echo(f"Git command failed: {' '.join(cmd)}", err=True)
+            raise
+        return e
+
+
+@click.command()
+@click.argument('repo_url', type=click.STRING)
+@click.option('--branch', '-b', help='Branch or tag to checkout after cloning')
+@click.option('--shell', is_flag=True, help='Start an interactive shell in the target directory')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
+def main(repo_url, branch, shell, verbose):
+    """
+    Clone GitHub repositories to ~/wsp/repos/git/org/project_name.
+    
+    REPO_URL: GitHub repository URL (https://github.com/org/repo, git@github.com:org/repo, or org/repo)
+    """
+    try:
+        if verbose:
+            click.echo(f"Processing repository: {repo_url}")
+        
+        try:
+            domain, owner, repo = parse_git_url(repo_url)
+        except ValueError as e:
+            click.echo(f"Error: {e}", err=True)
+            sys.exit(1)
+        
+        if verbose:
+            click.echo(f"Domain: {domain}")
+            click.echo(f"Owner: {owner}")
+            click.echo(f"Repository: {repo}")
+        
+        git_base_dir = get_git_base_dir()
+        target_dir = git_base_dir / owner / repo
+        
+        click.echo(f"Target directory: {target_dir}")
+        
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        
+        full_url = f"https://{domain}/{owner}/{repo}.git"
+        
+        if target_dir.exists():
+            click.echo("Repository already exists")
+            os.chdir(target_dir)
+            
+            result = run_git_command(['git', 'remote', 'get-url', 'origin'], check=False)
+            if result.returncode != 0:
+                click.echo(f"Adding remote origin: {full_url}")
+                run_git_command(['git', 'remote', 'add', 'origin', full_url])
+            
+            click.echo("Fetching latest changes...")
+            run_git_command(['git', 'fetch', 'origin'])
+        else:
+            click.echo(f"Cloning repository {full_url}")
+            run_git_command(['git', 'clone', full_url, str(target_dir)])
+            os.chdir(target_dir)
+        
+        if branch:
+            click.echo(f"Checking out branch/tag: {branch}")
+            
+            result = run_git_command(['git', 'rev-parse', '--verify', branch], check=False)
+            if result.returncode != 0:
+                click.echo("Branch/tag not found locally, fetching...")
+                run_git_command(['git', 'fetch', '--tags', 'origin'])
+                
+                result = run_git_command(['git', 'rev-parse', '--verify', branch], check=False)
+                if result.returncode != 0:
+                    click.echo(f"Error: Branch/tag {branch} not found in repository", err=True)
+                    sys.exit(1)
+            
+            run_git_command(['git', 'checkout', branch])
+            click.echo(f"Successfully checked out {branch} in {target_dir}")
+        else:
+            click.echo(f"Successfully cloned to {target_dir}")
+        
+        click.echo(f"Current directory: {os.getcwd()}")
+        
+        click.echo(f"TARGET_DIR={target_dir}")
+        
+        if shell:
+            click.echo("Starting interactive shell in target directory...")
+            shell_cmd = os.environ.get('SHELL', '/bin/bash')
+            os.execv(shell_cmd, [shell_cmd])
+        else:
+            click.echo(f"\nTo change to the directory, run:")
+            click.echo(f"cd {target_dir}")
+    
+    except KeyboardInterrupt:
+        click.echo("\nOperation cancelled by user", err=True)
+        sys.exit(1)
+    except Exception as e:
+        if verbose:
+            raise
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

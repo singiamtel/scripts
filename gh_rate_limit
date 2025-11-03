@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+# Check if gh CLI is installed
+if ! command -v gh &> /dev/null; then
+    echo "GitHub CLI (gh) is not installed. Please install it first."
+    exit 1
+fi
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "jq is not installed. Please install it first."
+    exit 1
+fi
+
+# Fetch rate limit information
+rate_limit_data=$(gh api rate_limit)
+
+# Parse and display the information
+echo "=========================================="
+echo "GitHub API Rate Limit Status"
+echo "=========================================="
+echo ""
+
+# Core API
+echo "Core API:"
+core_limit=$(echo "$rate_limit_data" | jq -r '.resources.core.limit')
+core_used=$(echo "$rate_limit_data" | jq -r '.resources.core.used')
+core_remaining=$(echo "$rate_limit_data" | jq -r '.resources.core.remaining')
+core_reset=$(echo "$rate_limit_data" | jq -r '.resources.core.reset')
+core_reset_time=$(date -r "$core_reset" 2>/dev/null || date -d "@$core_reset" 2>/dev/null || echo "N/A")
+
+echo "  Limit:     $core_limit"
+echo "  Used:      $core_used"
+echo "  Remaining: $core_remaining"
+echo "  Resets at: $core_reset_time"
+echo ""
+
+# Search API
+echo "Search API:"
+search_limit=$(echo "$rate_limit_data" | jq -r '.resources.search.limit')
+search_used=$(echo "$rate_limit_data" | jq -r '.resources.search.used')
+search_remaining=$(echo "$rate_limit_data" | jq -r '.resources.search.remaining')
+search_reset=$(echo "$rate_limit_data" | jq -r '.resources.search.reset')
+search_reset_time=$(date -r "$search_reset" 2>/dev/null || date -d "@$search_reset" 2>/dev/null || echo "N/A")
+
+echo "  Limit:     $search_limit"
+echo "  Used:      $search_used"
+echo "  Remaining: $search_remaining"
+echo "  Resets at: $search_reset_time"
+echo ""
+
+# GraphQL API
+echo "GraphQL API:"
+graphql_limit=$(echo "$rate_limit_data" | jq -r '.resources.graphql.limit')
+graphql_used=$(echo "$rate_limit_data" | jq -r '.resources.graphql.used')
+graphql_remaining=$(echo "$rate_limit_data" | jq -r '.resources.graphql.remaining')
+graphql_reset=$(echo "$rate_limit_data" | jq -r '.resources.graphql.reset')
+graphql_reset_time=$(date -r "$graphql_reset" 2>/dev/null || date -d "@$graphql_reset" 2>/dev/null || echo "N/A")
+
+echo "  Limit:     $graphql_limit"
+echo "  Used:      $graphql_used"
+echo "  Remaining: $graphql_remaining"
+echo "  Resets at: $graphql_reset_time"
+echo ""
+
+# Show percentage remaining for core API
+if [ "$core_limit" -gt 0 ]; then
+    percentage=$((core_remaining * 100 / core_limit))
+    echo "Core API Usage: $percentage% remaining"
+    
+    if [ "$percentage" -lt 10 ]; then
+        echo "⚠️  WARNING: Running low on API calls!"
+    fi
+fi
+
+echo "=========================================="

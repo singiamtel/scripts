@@ -164,7 +164,7 @@ async def main() -> int:
         "--raw", action="store_true", help="Print raw output without any formatting"
     )
     parser.add_argument(
-        "--timeout", type=int, default=10, help="SSH connection timeout in seconds"
+        "--timeout", type=int, default=15, help="SSH connection timeout in seconds"
     )
     parser.add_argument(
         "--json-file",

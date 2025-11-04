@@ -220,9 +220,7 @@ async def main() -> int:
         stdin_data = sys.stdin.buffer.read()
     else:
         if not sys.stdin.isatty():
-            print('123')
             sys.stdin.read()
-            print('456')
 
 
     thread_colors = [Fore.GREEN, Fore.YELLOW, Fore.BLUE, Fore.MAGENTA, Fore.CYAN]

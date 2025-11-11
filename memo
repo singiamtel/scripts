@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# memo - Memoize command output with cache lifetime
+# Usage: memo [--ttl SECONDS] COMMAND [ARGS...]
+# Example: memo curl example.com | jq '.data'
+
+set -euo pipefail
+
+# Default cache TTL in seconds (1 hour)
+DEFAULT_TTL=3600
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/memo"
+
+# Parse options
+TTL="$DEFAULT_TTL"
+if [[ "${1:-}" == "--ttl" ]]; then
+    TTL="$2"
+    shift 2
+fi
+
+# Check if command provided
+if [[ $# -eq 0 ]]; then
+    echo "Usage: memo [--ttl SECONDS] COMMAND [ARGS...]" >&2
+    echo "Example: memo curl example.com" >&2
+    exit 1
+fi
+
+# Create cache directory
+mkdir -p "$CACHE_DIR"
+
+# Clean up old cache files (older than DEFAULT_TTL)
+find "$CACHE_DIR" -type f -mtime +$((DEFAULT_TTL / 86400)) -delete 2>/dev/null || true
+
+# Generate cache key from command and arguments
+CACHE_KEY=$(echo -n "$*" | shasum -a 256 | cut -d' ' -f1)
+CACHE_FILE="$CACHE_DIR/$CACHE_KEY"
+
+# Check if cache exists and is fresh
+if [[ -f "$CACHE_FILE" ]]; then
+    # Get cache file age in seconds
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # macOS
+        CACHE_MTIME=$(stat -f %m "$CACHE_FILE")
+    else
+        # Linux
+        CACHE_MTIME=$(stat -c %Y "$CACHE_FILE")
+    fi
+    
+    CURRENT_TIME=$(date +%s)
+    CACHE_AGE=$((CURRENT_TIME - CACHE_MTIME))
+    
+    if [[ $CACHE_AGE -lt $TTL ]]; then
+        # Cache is fresh, return it
+        cat "$CACHE_FILE"
+        exit 0
+    fi
+fi
+
+# Cache miss or expired - run command and cache output
+"$@" | tee "$CACHE_FILE"

@@ -4,12 +4,59 @@
 set -eu  # (no pipefail in POSIX sh)
 
 usage() {
-  echo "Usage: uv-test [-p|--python PY_VER] [pytest args...]"
-  echo "  -p, --python  Set Python version (default: \$UV_PY or 3.14)"
-  echo "  -h, --help    Show this help"
+  echo "Usage: uv-test [-p|--python PY_VER] [-a|--all-versions] [pytest args...]"
+  echo "  -p, --python       Set Python version (default: \$UV_PY or 3.14)"
+  echo "  -a, --all-versions Run tests on all minor versions from pyproject.toml"
+  echo "  -h, --help         Show this help"
+}
+
+# Extract supported Python versions from pyproject.toml
+get_supported_versions() {
+  if [ ! -f pyproject.toml ]; then
+    echo "error: pyproject.toml not found" >&2
+    return 1
+  fi
+  
+  # Extract requires-python field (e.g., ">=3.10", ">=3.8,<3.13")
+  req_python=$(grep -E 'requires-python\s*=' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+  
+  if [ -z "$req_python" ]; then
+    echo "error: requires-python not found in pyproject.toml" >&2
+    return 1
+  fi
+  
+  # Extract minimum version (e.g., ">=3.10" -> "3.10")
+  min_ver=$(echo "$req_python" | sed -E 's/^[^0-9]*([0-9]+\.[0-9]+).*$/\1/')
+  min_major=$(echo "$min_ver" | cut -d. -f1)
+  min_minor=$(echo "$min_ver" | cut -d. -f2)
+  
+  # uv doesn't support Python <= 3.7, so enforce minimum of 3.8
+  if [ "$min_major" -eq 3 ] && [ "$min_minor" -lt 8 ]; then
+    min_minor=8
+  fi
+  
+  # Extract maximum version if present (e.g., "<3.13" -> "3.13")
+  max_ver=$(echo "$req_python" | sed -E 's/.*<\s*([0-9]+\.[0-9]+).*/\1/')
+  if [ "$max_ver" = "$req_python" ]; then
+    # No max version specified, use current stable (3.14 as of now)
+    max_ver="3.14"
+  fi
+  max_major=$(echo "$max_ver" | cut -d. -f1)
+  max_minor=$(echo "$max_ver" | cut -d. -f2)
+  
+  # Generate list of minor versions
+  versions=""
+  current_minor=$min_minor
+  while [ "$min_major" -eq "$max_major" ] && [ "$current_minor" -lt "$max_minor" ]; do
+    versions="$versions $min_major.$current_minor"
+    current_minor=$((current_minor + 1))
+  done
+  
+  echo "$versions"
 }
 
 PYVER="${UV_PY:-3.14}"
+ALL_VERSIONS=0
 
 # Parse only our flags; pass the rest to pytest
 while [ $# -gt 0 ]; do
@@ -18,6 +65,8 @@ while [ $# -gt 0 ]; do
       shift
       [ $# -gt 0 ] || { echo "error: -p/--python requires a version" >&2; exit 2; }
       PYVER="$1"; shift ;;
+    -a|--all-versions)
+      ALL_VERSIONS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; break ;;
     *) break ;;
@@ -30,4 +79,61 @@ if [ ! -f pyproject.toml ] && [ ! -f setup.py ]; then
   exit 1
 fi
 
-exec uvx --python "$PYVER" --with pytest --isolated --with-editable  . -- pytest "$@"
+# Run tests for all versions if requested
+if [ "$ALL_VERSIONS" -eq 1 ]; then
+  versions=$(get_supported_versions)
+  if [ -z "$versions" ]; then
+    echo "error: could not determine supported Python versions" >&2
+    exit 1
+  fi
+  
+  echo "Running tests for Python versions:$versions"
+  echo ""
+  
+  # Create a temporary directory for log files
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+  
+  # Start all tests in parallel
+  pids=""
+  for ver in $versions; do
+    (
+      echo "========================================"
+      echo "Testing with Python $ver"
+      echo "========================================"
+      uvx --python "$ver" --with pytest --isolated --with-editable . -- pytest "$@"
+      echo "$?" > "$tmpdir/$ver.exit"
+    ) > "$tmpdir/$ver.log" 2>&1 &
+    pids="$pids $!"
+  done
+  
+  # Wait for all tests to complete
+  for pid in $pids; do
+    wait "$pid" || true
+  done
+  
+  # Collect results and display logs
+  failed_versions=""
+  for ver in $versions; do
+    echo ""
+    cat "$tmpdir/$ver.log"
+    exit_code=$(cat "$tmpdir/$ver.exit")
+    if [ "$exit_code" -ne 0 ]; then
+      failed_versions="$failed_versions $ver"
+    fi
+  done
+  
+  echo ""
+  echo "========================================"
+  echo "Summary"
+  echo "========================================"
+  if [ -z "$failed_versions" ]; then
+    echo "All versions passed!"
+    exit 0
+  else
+    echo "Failed versions:$failed_versions"
+    exit 1
+  fi
+else
+  exec uvx --python "$PYVER" --with pytest --isolated --with-editable  . -- pytest "$@"
+fi

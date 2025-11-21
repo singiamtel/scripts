@@ -13,7 +13,6 @@ done
 items=$(git ls-files | cut -d/ -f1 | sort -u)
 
 # Get current year and 6 months ago timestamp for comparison
-current_year=$(date +%Y)
 six_months_ago=$(date -v-6m +%s 2>/dev/null || date -d '6 months ago' +%s)
 
 # First pass: collect data and find max filename length
@@ -47,7 +46,7 @@ while read -r item; do
 		
 		# Track max length
 		len=${#display_name}
-		[ $len -gt $max_len ] && max_len=$len
+		[ "$len" -gt "$max_len" ] && max_len=$len
 	fi
 done <<< "$items"
 
@@ -61,6 +60,6 @@ sort_opts="-r"
 		IFS='|' read -r name hash full_date date msg <<< "$line"
 		printf "%s|%-${max_len}s|%s|%s|%s\n" "$full_date" "$name" "$hash" "$date" "$msg"
 	done
-) | sort $sort_opts | while IFS='|' read -r sortkey name hash date msg; do
+) | sort $sort_opts | while IFS='|' read -r _ name hash date msg; do
 	printf "\033[32m%-${max_len}s\033[0m \033[33m%s\033[0m %s %s\n" "$name" "$hash" "$date" "$msg"
 done

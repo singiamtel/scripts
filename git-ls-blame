@@ -1,10 +1,66 @@
 #!/usr/bin/env bash
 
-BLAME_FORMAT="%C(auto) %h %ai"
+# Parse command line arguments
+reverse_sort=""
+while getopts "r" opt; do
+	case $opt in
+		r) reverse_sort="yes" ;;
+		*) echo "Usage: $0 [-r]" >&2; exit 1 ;;
+	esac
+done
 
+# Get all root-level items (files and directories)
+items=$(git ls-files | cut -d/ -f1 | sort -u)
+
+# Get current year and 6 months ago timestamp for comparison
+current_year=$(date +%Y)
+six_months_ago=$(date -v-6m +%s 2>/dev/null || date -d '6 months ago' +%s)
+
+# First pass: collect data and find max filename length
+max_len=0
+declare -a data
+while read -r item; do
+	[ -z "$item" ] && continue
+	display_name="$item"
+	[ -d "$item" ] && display_name="$item/"
+	
+	commit_line=$(git last-modified "$item" 2>/dev/null)
+	if [ -n "$commit_line" ]; then
+		commit=$(echo "$commit_line" | awk '{print $1}')
+		# Get commit info without color for length calculation
+		hash=$(git --no-pager log -n 1 --pretty=format:"%h" "$commit" --)
+		# Get full date for sorting
+		full_date=$(git --no-pager log -n 1 --pretty=format:"%ai" "$commit" --)
+		# Get timestamp for comparison
+		commit_ts=$(git --no-pager log -n 1 --pretty=format:"%at" "$commit" --)
+		
+		# Format date like ls -ltrah: show time if recent (within 6 months), year if older
+		if [ "$commit_ts" -gt "$six_months_ago" ]; then
+			date=$(git --no-pager log -n 1 --pretty=format:"%ad" --date=format:"%b %e %H:%M" "$commit" --)
+		else
+			date=$(git --no-pager log -n 1 --pretty=format:"%ad" --date=format:"%b %e  %Y" "$commit" --)
+		fi
+		
+		msg=$(git --no-pager log -n 1 --pretty=format:"%s" "$commit" --)
+		
+		data+=("$display_name|$hash|$full_date|$date|$msg")
+		
+		# Track max length
+		len=${#display_name}
+		[ $len -gt $max_len ] && max_len=$len
+	fi
+done <<< "$items"
+
+# Determine sort order
+sort_opts="-r"
+[ -n "$reverse_sort" ] && sort_opts=""
+
+# Second pass: output with aligned columns, sorted by date
 (
-	for f in $(git ls-files | grep -E '^[^/]+$'); do
-		git --no-pager log --color=always -n 1 --pretty=format:"$BLAME_FORMAT %C(green)$f%C(auto) %C(dim white)%an%C(auto) %s" -- "$f"
-		echo
+	for line in "${data[@]}"; do
+		IFS='|' read -r name hash full_date date msg <<< "$line"
+		printf "%s|%-${max_len}s|%s|%s|%s\n" "$full_date" "$name" "$hash" "$date" "$msg"
 	done
-) | sort -k 2 -r
+) | sort $sort_opts | while IFS='|' read -r sortkey name hash date msg; do
+	printf "\033[32m%-${max_len}s\033[0m \033[33m%s\033[0m %s %s\n" "$name" "$hash" "$date" "$msg"
+done

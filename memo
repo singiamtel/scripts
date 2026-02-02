@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # memo - Memoize command output with cache lifetime
-# Usage: memo [--ttl SECONDS] COMMAND [ARGS...]
+# Usage: memo [OPTIONS] COMMAND [ARGS...]
 # Example: memo curl example.com | jq '.data'
 
 set -euo pipefail
@@ -9,17 +9,51 @@ set -euo pipefail
 DEFAULT_TTL=3600
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/memo"
 
+show_help() {
+    cat <<EOF
+memo - Memoize command output with cache lifetime
+
+Usage: memo [OPTIONS] COMMAND [ARGS...]
+
+Options:
+  --ttl SECONDS   Cache lifetime in seconds (default: $DEFAULT_TTL)
+  -f, --force     Force recreation of cache, ignoring existing cached value
+  -h, --help      Show this help message
+
+Examples:
+  memo curl example.com              # Cache curl output for 1 hour
+  memo --ttl 60 curl example.com     # Cache for 60 seconds
+  memo -f curl example.com           # Force refresh, ignore cache
+EOF
+    exit 0
+}
+
 # Parse options
 TTL="$DEFAULT_TTL"
-if [[ "${1:-}" == "--ttl" ]]; then
-    TTL="$2"
-    shift 2
-fi
+FORCE=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            ;;
+        --ttl)
+            TTL="$2"
+            shift 2
+            ;;
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 # Check if command provided
 if [[ $# -eq 0 ]]; then
-    echo "Usage: memo [--ttl SECONDS] COMMAND [ARGS...]" >&2
-    echo "Example: memo curl example.com" >&2
+    echo "Usage: memo [OPTIONS] COMMAND [ARGS...]" >&2
+    echo "Try 'memo --help' for more information." >&2
     exit 1
 fi
 
@@ -33,8 +67,8 @@ find "$CACHE_DIR" -type f -mtime +$((DEFAULT_TTL / 86400)) -delete 2>/dev/null |
 CACHE_KEY=$(echo -n "$*" | shasum -a 256 | cut -d' ' -f1)
 CACHE_FILE="$CACHE_DIR/$CACHE_KEY"
 
-# Check if cache exists and is fresh
-if [[ -f "$CACHE_FILE" ]]; then
+# Check if cache exists and is fresh (unless force is set)
+if [[ "$FORCE" == false && -f "$CACHE_FILE" ]]; then
     # Get cache file age in seconds
     if [[ "$(uname)" == "Darwin" ]]; then
         # macOS

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Show process info for what's listening on a given port
+
+if [[ -z $1 ]]; then
+    echo "Usage: port-ps <port>" >&2
+    exit 1
+fi
+
+port=$1
+pids=$(lsof -n -ti ":$port" 2>/dev/null)
+
+if [[ -z $pids ]]; then
+    echo "Nothing listening on port $port"
+    exit 0
+fi
+
+for pid in $pids; do
+    ps -p "$pid" -o pid,user,command
+done

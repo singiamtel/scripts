@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -ex
+
+brew upgrade --greedy
+bun update --latest -g
+mise up
+uv tool upgrade --all

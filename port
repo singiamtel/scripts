@@ -2,9 +2,34 @@
 
 # Show process info for what's listening on a given port
 
+if [[ $1 == --help ]]; then
+    echo "Usage: port [<port>]"
+    echo ""
+    echo "With no arguments, lists all used ports."
+    echo "With a port number, shows the process listening on that port."
+    exit 0
+fi
+
 if [[ -z $1 ]]; then
-    echo "Usage: port-ps <port>" >&2
-    exit 1
+    pairs=$(lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {
+        n = split($(NF-1), a, ":")
+        print a[n], $2
+    }' | sort -u -k1,1n)
+    if [[ -z $pairs ]]; then
+        echo "No ports in use"
+        exit 0
+    fi
+    first=true
+    while IFS=' ' read -r port pid; do
+        if $first; then
+            printf "%-7s " "PORT"
+            ps -p "$pid" -o pid,user,command 2>/dev/null | head -1
+            first=false
+        fi
+        info=$(ps -p "$pid" -o pid=,user=,command= 2>/dev/null)
+        [[ -n $info ]] && printf "%-7s %s\n" "$port" "$info"
+    done <<< "$pairs"
+    exit 0
 fi
 
 port=$1

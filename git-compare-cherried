@@ -21,8 +21,13 @@ if [ -z "$UNIQUE_COMMITS" ]; then
   exit 0
 fi
 
-# Get all commit messages from upstream for comparison
-UPSTREAM_MSGS=$(git log --format="%s" "$UPSTREAM")
+# Normalize a commit message by stripping all PR number suffixes like (#123)
+normalize_msg() {
+  echo "$1" | sed 's/ (#[0-9]*)\b//g; s/(#[0-9]*)//g' | sed 's/[[:space:]]*$//'
+}
+
+# Get all normalized commit messages from upstream for comparison
+UPSTREAM_MSGS=$(git log --format="%s" "$UPSTREAM" | while IFS= read -r msg; do normalize_msg "$msg"; done)
 
 echo "Commits in $HEAD that aren't in $UPSTREAM based on commit message:"
 echo "--------------------------------------------------------------"
@@ -30,9 +35,10 @@ echo "--------------------------------------------------------------"
 while IFS= read -r commit; do
   # Get the commit message for this commit
   COMMIT_MSG=$(git log -n 1 --format="%s" "$commit")
-  
-  # Check if this commit message exists in upstream
-  if ! echo "$UPSTREAM_MSGS" | grep -q "^$COMMIT_MSG$"; then
+  NORMALIZED_MSG=$(normalize_msg "$COMMIT_MSG")
+
+  # Check if this normalized commit message exists in upstream (fixed-string match to handle special regex chars)
+  if ! echo "$UPSTREAM_MSGS" | grep -qF "$NORMALIZED_MSG"; then
     # This commit message doesn't exist in upstream, so show it
     git show --no-patch --format="%C(yellow)%h%C(reset) - %s %C(green)(%cr) %C(bold blue)<%an>%C(reset)" "$commit"
   fi

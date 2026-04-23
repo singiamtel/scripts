@@ -33,7 +33,7 @@ class SSHResult:
 def setup_logging(raw: bool = False) -> None:
     class ColoredFormatter(logging.Formatter):
         def format(self, record):
-            if hasattr(record, "thread_color"):
+            if hasattr(record, "thread_color") and hasattr(record, "host"):
                 if record.levelno == logging.ERROR:
                     record.msg = f"{record.thread_color}[{now()}] {record.host}:{Fore.RED} {record.msg}{Style.RESET_ALL}"
                 else:
@@ -43,12 +43,18 @@ def setup_logging(raw: bool = False) -> None:
                     record.msg = f"{Fore.RED}[{now()}] {record.msg}{Style.RESET_ALL}"
             return super().format(record)
 
+    class RawFormatter(logging.Formatter):
+        def format(self, record):
+            if hasattr(record, "host"):
+                record.msg = f"{record.host}: {record.msg}"
+            return super().format(record)
+
     # Create handlers for stdout and stderr
     stdout_handler = logging.StreamHandler(sys.stdout)
     stderr_handler = logging.StreamHandler(sys.stderr)
 
     if raw:
-        formatter = logging.Formatter("%(host)s: %(message)s")
+        formatter = RawFormatter("%(message)s")
         stdout_handler.setFormatter(formatter)
         stderr_handler.setFormatter(formatter)
     else:

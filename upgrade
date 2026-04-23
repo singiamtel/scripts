@@ -7,4 +7,12 @@ bun update --latest -g
 mise up
 uv tool upgrade --all
 rustup update
-cargo install "$(cargo install --list | grep -E '^[a-z0-9_-]+ v[0-9.]+:$' | cut -f1 -d' ')"
+mapfile -t cargo_packages < <(
+  cargo install --list |
+    grep -E '^[a-z0-9_-]+ v[0-9.]+:$' |
+    cut -f1 -d' '
+)
+
+if ((${#cargo_packages[@]} > 0)); then
+  cargo install "${cargo_packages[@]}"
+fi

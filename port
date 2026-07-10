@@ -2,11 +2,23 @@
 
 # Show process info for what's listening on a given port
 
+kill_mode=false
+args=()
+for arg; do
+    if [[ $arg == --kill || $arg == -k ]]; then
+        kill_mode=true
+    else
+        args+=("$arg")
+    fi
+done
+set -- "${args[@]}"
+
 if [[ $1 == --help ]]; then
-    echo "Usage: port [<port>]"
+    echo "Usage: port [<port>] [-k|--kill]"
     echo ""
     echo "With no arguments, lists all used ports."
     echo "With a port number, shows the process listening on that port."
+    echo "  -k, --kill  Kill the process listening on the given port."
     exit 0
 fi
 
@@ -43,3 +55,9 @@ fi
 for pid in $pids; do
     ps -p "$pid" -o pid,user,command
 done
+
+if $kill_mode; then
+    for pid in $pids; do
+        kill "$pid" 2>/dev/null && echo "Killed PID $pid" || echo "Failed to kill PID $pid"
+    done
+fi
